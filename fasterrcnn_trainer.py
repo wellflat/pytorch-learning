@@ -79,6 +79,8 @@ class FasterRCNNTrainer:
 
                     progress_bar(batch_idx, len(loaders[phase]), 'Loss: %.3f'
                          % (running_loss/(batch_idx+1),))
+                    progress_bar(batch_idx, len(loaders[phase]), 'Loss: %.3f'
+                         % (loss.item(),))
                 
                 #epoch_acc = 100.*correct / len(loaders[phase].dataset)
                 epoch_loss = running_loss / len(loaders[phase])
