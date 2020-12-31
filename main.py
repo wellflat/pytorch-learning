@@ -4,7 +4,7 @@
 import argparse
 from clearml import Task
 
-from loader import create_loaders
+from cifar10_loader import create_loaders
 from trainer import Trainer
 
 def parse_args():
@@ -43,5 +43,6 @@ if __name__ == '__main__':
         trainer.train(loaders, conf['epochs'], resume=args.resume)
         trainer.save(NET_PATH)
     else:
-        trainer.load(NET_PATH)
+        #trainer.load(NET_PATH)
+        trainer.load_checkpoint()
         trainer.test(loaders['val'])
