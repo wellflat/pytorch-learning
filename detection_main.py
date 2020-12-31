@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+import sys
 from clearml import Task
 
 from oxfordpet_loader import create_loaders
@@ -16,6 +17,7 @@ def parse_args():
     parser.add_argument('--resume', '-r', action='store_true',
                         help='resume from checkpoint')
     return parser.parse_args()
+
 
 if __name__ == '__main__':
     args = parse_args()
@@ -35,8 +37,10 @@ if __name__ == '__main__':
     print(conf)
     conf = task.connect(conf)
     NET_PATH = './oxfordpet_net.pth'
+
     loaders = create_loaders(conf)
-    
+    print(len(loaders['train']), len(loaders['val']))
+    sys.exit(0)    
     is_train = args.train
     trainer = FasterRCNNTrainer(conf)
     if is_train:

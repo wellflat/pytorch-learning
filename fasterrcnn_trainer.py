@@ -12,9 +12,8 @@ from utils import progress_bar
 
 class FasterRCNNTrainer:
     net: FasterRCNN
-    criterion: nn.CrossEntropyLoss
     optimizer: optim.SGD
-    scheduler: optim.lr_scheduler.StepLR
+    scheduler: optim.lr_scheduler.CosineAnnealingLR
     best_acc: float
     start_epoch: int
     tensorboard_writer: SummaryWriter
@@ -23,9 +22,8 @@ class FasterRCNNTrainer:
         super().__init__()
         torch.backends.cudnn.benchmark = True
         self.net = self.__prepare_net(conf.get('classes', 3))
-        self.criterion = nn.CrossEntropyLoss()
+        print(list(self.net.children())[-1])
         param = [p for p in self.net.parameters() if p.requires_grad]
-        #print(param)
         self.optimizer = optim.SGD(
             param,
             lr=conf.get('base_lr', 0.01),

@@ -2,6 +2,7 @@
 
 from typing import Dict
 from glob import glob
+import pickle
 import numpy as np
 import pandas as pd
 import xml.etree.ElementTree as ET
@@ -119,10 +120,16 @@ class DetectionDataset(Dataset):
         return self.image_ids.shape[0]
 
 
-def create_loaders(conf: Dict) -> Dict[str, DataLoader]:
-    df = parse_xmls()
+def create_loaders(conf: Dict, use_cache: bool=True) -> Dict[str, DataLoader]:
     image_dir = './data/oxford/images'
-    dataset = DetectionDataset(df, image_dir)
+    cache_filepath = './data/oxford/oxfordpet_dataset.pkl'
+    if use_cache:
+        dataset = load(cache_filepath)
+    else:
+        df = parse_xmls()
+        dataset = DetectionDataset(df, image_dir)
+        save(dataset, cache_filepath)
+    
     torch.manual_seed(2021)
     n_train = int(len(dataset) * 0.7)
     n_val = len(dataset) - n_train
@@ -136,6 +143,15 @@ def create_loaders(conf: Dict) -> Dict[str, DataLoader]:
         'train': trainloader,
         'val': valloader
     }
+
+def save(dataset: DetectionDataset, filepath: str):
+    with open(filepath, 'wb') as f:
+        pickle.dump(dataset, f)
+
+def load(filepath: str) -> DetectionDataset:
+    with open(filepath, 'rb') as f:
+        data = pickle.load(f)
+    return data
 
 
 if __name__ == '__main__':
