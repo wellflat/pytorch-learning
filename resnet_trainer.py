@@ -10,7 +10,7 @@ import model
 from utils import progress_bar
 
 
-class Trainer:
+class ResNetTrainer:
     net: ResNet
     criterion: nn.CrossEntropyLoss
     optimizer: optim.SGD

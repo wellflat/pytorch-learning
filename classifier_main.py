@@ -5,7 +5,7 @@ import argparse
 from clearml import Task
 
 from cifar10_loader import create_loaders
-from trainer import Trainer
+from resnet_trainer import ResNetTrainer
 
 def parse_args():
     parser = argparse.ArgumentParser(description='PyTorch Training')
@@ -38,7 +38,7 @@ if __name__ == '__main__':
     loaders = create_loaders(conf)
     
     is_train = args.train
-    trainer = Trainer(conf, is_finetune=False)
+    trainer = ResNetTrainer(conf, is_finetune=False)
     if is_train:
         trainer.train(loaders, conf['epochs'], resume=args.resume)
         trainer.save(NET_PATH)
