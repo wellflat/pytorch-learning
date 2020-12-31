@@ -73,6 +73,7 @@ def parse_xmls(xml_path: str='./data/oxford/annotations/xmls/*.xml') -> pd.DataF
             df = df.append(tmp, ignore_index=True)
 
     df = df.sort_values(by="image_id", ascending=True)
+    df['class'] = df['class'] + 1
     #print(df.head())
     print('parsing annotation data complete.')
     return df
