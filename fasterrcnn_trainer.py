@@ -22,8 +22,8 @@ class FasterRCNNTrainer:
         super().__init__()
         torch.backends.cudnn.benchmark = True
         self.net = self.__prepare_net(conf.get('classes', 3))
-        print(list(self.net.children())[-1])
         param = [p for p in self.net.parameters() if p.requires_grad]
+        print(len(param))
         self.optimizer = optim.SGD(
             param,
             lr=conf.get('base_lr', 0.01),
@@ -63,7 +63,9 @@ class FasterRCNNTrainer:
                     inputs = list(input.to(device) for input in inputs)
                     targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
                     loss_dict = self.net(inputs, targets)
+                    #print(loss_dict)
                     loss = sum(loss for loss in loss_dict.values())
+                    #print(loss)
                     if phase == 'train':
                         self.optimizer.zero_grad()
                         loss.backward()
@@ -75,9 +77,9 @@ class FasterRCNNTrainer:
                     #correct += predicted.eq(targets).sum().item()
                     #accuracy = 100.*correct/total
 
-                    progress_bar(batch_idx, len(loaders[phase]), 'Loss: %.3f'
-                         % (running_loss/(batch_idx+1),))
-                    progress_bar(batch_idx, len(loaders[phase]), 'Loss: %.3f'
+                    #progress_bar(batch_idx, len(loaders[phase]), 'Loss: %.3f'
+                    #     % (running_loss/(batch_idx+1),))
+                    progress_bar(batch_idx, len(loaders[phase]), 'Loss: %.5f'
                          % (loss.item(),))
                 
                 #epoch_acc = 100.*correct / len(loaders[phase].dataset)

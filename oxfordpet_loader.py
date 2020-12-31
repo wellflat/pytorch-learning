@@ -55,6 +55,7 @@ class xml2list(object):
         return np.array(ret) # [width, height, xmin, ymin, xamx, ymax, label_idx]
 
 def parse_xmls(xml_path: str='./data/oxford/annotations/xmls/*.xml') -> pd.DataFrame:
+    print('parsing annotation data start.')
     xml_paths = glob(xml_path)
     classes = ["dog", "cat"]
 
@@ -73,7 +74,7 @@ def parse_xmls(xml_path: str='./data/oxford/annotations/xmls/*.xml') -> pd.DataF
 
     df = df.sort_values(by="image_id", ascending=True)
     #print(df.head())
-    print('parsing annotationd data complete.')
+    print('parsing annotation data complete.')
     return df
 
 
@@ -155,5 +156,6 @@ def load(filepath: str) -> DetectionDataset:
 
 
 if __name__ == '__main__':
+    conf = {'batch_size': 2}
     loaders = create_loaders()
     print(len(loaders['train']), len(loaders['val']))

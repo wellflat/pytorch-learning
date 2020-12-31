@@ -11,7 +11,7 @@ from fasterrcnn_trainer import FasterRCNNTrainer
 def parse_args():
     parser = argparse.ArgumentParser(description='PyTorch Training')
     parser.add_argument('--train', '-t', action='store_true', help='training mode')
-    parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+    parser.add_argument('--lr', default=0.01, type=float, help='learning rate')
     parser.add_argument('--epochs', default=100, type=int, help='epochs')
     parser.add_argument('--batch_size', default=1, type=int, help='batch size')
     parser.add_argument('--resume', '-r', action='store_true',
@@ -38,9 +38,9 @@ if __name__ == '__main__':
     conf = task.connect(conf)
     NET_PATH = './oxfordpet_net.pth'
 
-    loaders = create_loaders(conf)
-    print(len(loaders['train']), len(loaders['val']))
-    sys.exit(0)    
+    loaders = create_loaders(conf, use_cache=False)
+    #print(len(loaders['train']), len(loaders['val']))
+    
     is_train = args.train
     trainer = FasterRCNNTrainer(conf)
     if is_train:
