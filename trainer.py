@@ -8,7 +8,7 @@ from torchvision.models.resnet import ResNet
 from torch.utils.data import DataLoader
 import model
 from utils import progress_bar
-
+from clearml import Logger
 
 class Trainer:
     net: ResNet
@@ -17,9 +17,10 @@ class Trainer:
     scheduler: optim.lr_scheduler.StepLR
     best_acc: float
     start_epoch: int
-    tensorboard_writer: SummaryWriter
+    #tensorboard_writer: SummaryWriter
+    logger: Logger
 
-    def __init__(self, conf: dict, is_finetune: bool=True) -> None:
+    def __init__(self, conf: Dict, logger: Logger, is_finetune: bool=True) -> None:
         super().__init__()
         torch.backends.cudnn.benchmark = True
         self.net = model.prepare_resnet(conf.get('classes', 10), pretrained=is_finetune)
@@ -40,7 +41,9 @@ class Trainer:
         self.net.to(self.device)
         self.best_acc = 0.0
         self.start_epoch = 0
-        self.tensorboard_writer = SummaryWriter('./tensorboard_logs')
+        #self.tensorboard_writer = SummaryWriter('./tensorboard_logs')
+        self.logger = logger
+        
     
     def train(self, loaders: Dict[str, DataLoader], epochs: int, resume: bool=False) -> None:
         self.best_acc = 0.0
@@ -87,9 +90,11 @@ class Trainer:
                 if phase == 'train':
                     self.schedular.step()
                     print('lr: %f' % (self.schedular.get_last_lr()[0]))
-                    self.tensorboard_writer.add_scalar('training loss', epoch_loss, epoch)
+                    #self.tensorboard_writer.add_scalar('training loss', epoch_loss, epoch)
+                    self.logger.report_scalar('training loss', 'epochs', epoch_loss, epoch)
                 else:
-                    self.tensorboard_writer.add_scalar('validation accuracy', epoch_acc, epoch)
+                    #self.tensorboard_writer.add_scalar('validation accuracy', epoch_acc, epoch)
+                    self.logger.report_scalar('validation accuracy', 'epochs', epoch_acc, epoch)
                 
                 if phase == 'val' and epoch_acc > self.best_acc:
                     print('saving checkpoint...')

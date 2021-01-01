@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-from clearml import Task
+from clearml import Task, Logger
 
 from loader import create_loaders
 from trainer import Trainer
@@ -16,6 +16,7 @@ def parse_args():
     parser.add_argument('--resume', '-r', action='store_true',
                         help='resume from checkpoint')
     return parser.parse_args()
+
 
 if __name__ == '__main__':
     args = parse_args()
@@ -38,7 +39,8 @@ if __name__ == '__main__':
     loaders = create_loaders(conf)
     
     is_train = args.train
-    trainer = Trainer(conf, is_finetune=False)
+    logger = task.get_logger()
+    trainer = Trainer(conf, logger, is_finetune=False)
     if is_train:
         trainer.train(loaders, conf['epochs'], resume=args.resume)
         trainer.save(NET_PATH)
