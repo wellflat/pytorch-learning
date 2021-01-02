@@ -1,4 +1,6 @@
 checkpoint/
+snapshot/
 data/
 tensorboard_logs/
 *.pth
+clearml.conf

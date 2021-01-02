@@ -1,6 +1,6 @@
 
 
-from typing import Dict
+from typing import Dict, Tuple
 from glob import glob
 import pickle
 import numpy as np
@@ -89,7 +89,7 @@ class DetectionDataset(Dataset):
         self.df = df
         self.image_dir = image_dir
         
-    def __getitem__(self, index):
+    def __getitem__(self, index) -> Tuple[torch.Tensor, Dict, str]:
 
         transform = transforms.Compose([transforms.ToTensor()])
 
@@ -124,18 +124,21 @@ class DetectionDataset(Dataset):
 
 def create_loaders(conf: Dict, use_cache: bool=True) -> Dict[str, DataLoader]:
     image_dir = './data/oxford/images'
-    cache_filepath = './data/oxford/oxfordpet_dataset.pkl'
+    cache_filepath = './data/oxford/'
     if use_cache:
-        dataset = load(cache_filepath)
+        train = load(cache_filepath + 'train.pkl')
+        val = load(cache_filepath + 'val.pkl')
     else:
         df = parse_xmls()
         dataset = DetectionDataset(df, image_dir)
-        save(dataset, cache_filepath)
-    
-    torch.manual_seed(2021)
-    n_train = int(len(dataset) * 0.7)
-    n_val = len(dataset) - n_train
-    train, val = random_split(dataset, [n_train, n_val])
+        torch.manual_seed(2021)
+        n_train = int(len(dataset) * 0.8)
+        n_val = len(dataset) - n_train
+        train, val = random_split(dataset, [n_train, n_val])
+        save(train, cache_filepath + 'train.pkl')
+        save(val, cache_filepath + 'val.pkl')
+        print('saving dataset complete.')
+
     def collate_fn(batch):
         return tuple(zip(*batch))
 

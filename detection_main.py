@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import argparse
+import sys
 from clearml import Task
 
 from oxfordpet_loader import create_loaders
@@ -12,7 +13,7 @@ def parse_args():
     parser.add_argument('--train', '-t', action='store_true', help='training mode')
     parser.add_argument('--lr', default=0.01, type=float, help='learning rate')
     parser.add_argument('--epochs', default=100, type=int, help='epochs')
-    parser.add_argument('--batch_size', default=1, type=int, help='batch size')
+    parser.add_argument('--batch_size', default=2, type=int, help='batch size')
     parser.add_argument('--resume', '-r', action='store_true',
                         help='resume from checkpoint')
     return parser.parse_args()
@@ -43,10 +44,11 @@ if __name__ == '__main__':
     
     is_train = args.train
     trainer = FasterRCNNTrainer(conf)
+    sys.exit(-1)
     if is_train:
         trainer.train(loaders, conf['epochs'], resume=args.resume)
         trainer.save(NET_PATH)
     else:
         #trainer.load(NET_PATH)
-        trainer.load_checkpoint()
+        trainer.load_checkpoint(NET_PATH)
         trainer.test(loaders['val'])

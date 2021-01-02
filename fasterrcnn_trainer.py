@@ -24,7 +24,8 @@ class FasterRCNNTrainer:
         super().__init__()
         self.net = self.__prepare_net(conf.get('classes', 3))
         param = [p for p in self.net.parameters() if p.requires_grad]
-        #print(len(param))
+        #print(list(self.net.children())[-1])
+        #print(f'num requires_grad: {len(param)}')
         self.optimizer = optim.SGD(
             param,
             lr=conf.get('base_lr', 0.01),
@@ -32,7 +33,7 @@ class FasterRCNNTrainer:
             weight_decay=5e-4
         )
         #self.schedular = StepLR(self.optimizer, step_size=25, gamma=0.1)
-        self.schedular = CosineAnnealingLR(self.optimizer, T_max=200)
+        self.schedular = CosineAnnealingLR(self.optimizer, T_max=5, eta_min=0.001)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         torch.backends.cudnn.benchmark = True
         self.net.to(self.device)
@@ -63,10 +64,9 @@ class FasterRCNNTrainer:
                     targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
                     if phase == 'train':
                         loss_dict = self.net(inputs, targets)
-                        # {'loss_classifier': tensor(0.9050, grad_fn=<NllLossBackward>), 'loss_box_reg': tensor(0.1463, grad_fn=<DivBackward0>), 'loss_objectness': tensor(0.0120, grad_fn=<BinaryCrossEntropyWithLogitsBackward>), 'loss_rpn_box_reg': tensor(0.0026, grad_fn=<DivBackward0>)} 
+                        # loss_dict: {'loss_classifier': tensor(0.9050, grad_fn=<NllLossBackward>), 'loss_box_reg': tensor(0.1463, grad_fn=<DivBackward0>), 'loss_objectness': tensor(0.0120, grad_fn=<BinaryCrossEntropyWithLogitsBackward>), 'loss_rpn_box_reg': tensor(0.0026, grad_fn=<DivBackward0>)} 
                         loss = sum(loss for loss in loss_dict.values())
-                        #print(loss, loss.item())
-                        # tensor(1.0659, grad_fn=<AddBackward0>)
+                        # loss: tensor(1.0659, grad_fn=<AddBackward0>)
                         self.optimizer.zero_grad()
                         loss.backward()
                         self.optimizer.step()
@@ -105,40 +105,74 @@ class FasterRCNNTrainer:
 
 
     def test(self, loader: DataLoader) -> None:
+        import matplotlib
+        import matplotlib.pyplot as plt
+        matplotlib.use('Agg')
+        from PIL import Image, ImageDraw
+        import numpy as np
+
         self.net.eval()
         device = self.device
+
+        category = {0:'background', 1:'dog', 2:'cat'}
 
         with torch.no_grad():
             for batch_idx, (inputs, targets, image_ids) in enumerate(loader):
                 inputs = list(input.to(device) for input in inputs)
                 targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
                 outputs = self.net(inputs)
-                for output in outputs:
+                for input, output in zip(inputs, outputs):
                     keep = torchvision.ops.batched_nms(
                         output['boxes'],
                         output['scores'],
                         output['labels'],
                         0.5
                     )
-                    print(output['boxes'][keep[0].item()])
+                    print(output['boxes'])
+                    bbox = output['boxes'][keep[0].item()] #.numpy()
+                    score = output['scores'][keep[0].item()] #.numpy()
+                    label = output['labels'][keep[0].item()] #.numpy()
+                    image = input.permute(1,2,0).numpy()
+                    image = Image.fromarray((image * 255).astype(np.uint8))
+                    
+                    #draw = ImageDraw.Draw(image)
+                    print(f'label: {label.item()}, score: {score.item()}')
+                    #print(bbox)
+                    #draw.rectangle([(bbox[0], bbox[1]), (bbox[2], bbox[3])], outline="red", width=3)
 
+                    #fig, ax = plt.subplot(1, 1)
+                    #ax.imshow(np.array(image))
+                    #self.tensorboard_writer.add_image('image', input)
+                    self.tensorboard_writer.add_image_with_boxes('bbox', input, output['boxes'])
 
     def save(self, path: str) -> None:
         torch.save(self.net.state_dict(), path)
 
 
     def load(self, path: str) -> None:
-        self.net.load_state_dict(torch.load(path))
+        self.net.load_state_dict(torch.load(path, map_location=self.device))
 
 
-    def load_checkpoint(self) -> None:
-        checkpoint = torch.load('./checkpoint/model.pth')
+    def load_checkpoint(self, path: str='./checkpoint/model.pth') -> None:
+        checkpoint = torch.load(path, map_location=self.device)
         self.net.load_state_dict(checkpoint['net'])
         self.start_epoch = checkpoint['epoch'] + 1
 
 
     def __prepare_net(self, num_classes: int) -> FasterRCNN:
-        net = fasterrcnn_resnet50_fpn(pretrained=True)
+        net = fasterrcnn_resnet50_fpn(pretrained=True, trainable_backbone_layers=3)
         in_features = net.roi_heads.box_predictor.cls_score.in_features
         net.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_classes)
+        '''
+        RoIHeads(
+          (box_roi_pool): MultiScaleRoIAlign()
+          (box_head): TwoMLPHead(
+            (fc6): Linear(in_features=12544, out_features=1024, bias=True)
+            (fc7): Linear(in_features=1024, out_features=1024, bias=True)
+          )
+          (box_predictor): FastRCNNPredictor(
+            (cls_score): Linear(in_features=1024, out_features=3, bias=True)
+            (bbox_pred): Linear(in_features=1024, out_features=12, bias=True)
+          )
+        )'''
         return net

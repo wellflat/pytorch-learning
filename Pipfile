@@ -9,6 +9,8 @@ torchvision = "*"
 clearml = "*"
 tensorboard = "*"
 pandas = "*"
+matplotlib = "*"
+tensorflow = "*"
 
 [dev-packages]
 
