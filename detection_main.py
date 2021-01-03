@@ -44,7 +44,7 @@ if __name__ == '__main__':
     
     is_train = args.train
     trainer = FasterRCNNTrainer(conf)
-    sys.exit(-1)
+    #sys.exit(-1)
     if is_train:
         trainer.train(loaders, conf['epochs'], resume=args.resume)
         trainer.save(NET_PATH)

@@ -142,8 +142,20 @@ def create_loaders(conf: Dict, use_cache: bool=True) -> Dict[str, DataLoader]:
     def collate_fn(batch):
         return tuple(zip(*batch))
 
-    trainloader = DataLoader(train, batch_size=conf.get('batch_size', 1), shuffle=True, collate_fn=collate_fn)
-    valloader = DataLoader(val, batch_size=2, shuffle=False, collate_fn=collate_fn)
+    trainloader = DataLoader(
+        train,
+        batch_size=conf.get('batch_size', 1),
+        shuffle=True,
+        collate_fn=collate_fn,
+        num_workers=2
+    )
+    valloader = DataLoader(
+        val,
+        batch_size=2,
+        shuffle=False,
+        collate_fn=collate_fn,
+        num_workers=2
+    )
     return {
         'train': trainloader,
         'val': valloader
