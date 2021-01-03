@@ -2,10 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import argparse
-from clearml import Task, Logger
+from clearml import Task
 
 from cifar10_loader import create_loaders
-from resnet_trainer import ResNetTrainer
+from resnet_classifier import ResNetClassifier
 
 def parse_args():
     parser = argparse.ArgumentParser(description='PyTorch Training')
@@ -40,11 +40,16 @@ if __name__ == '__main__':
     
     is_train = args.train
     logger = task.get_logger()
-    trainer = ResNetTrainer(conf, logger, is_finetune=False)
+    estimator = ResNetClassifier(conf, logger, is_finetune=False)
     if is_train:
-        trainer.train(loaders, conf['epochs'], resume=args.resume)
-        trainer.save(NET_PATH)
+        estimator.fit(loaders, conf['epochs'], resume=args.resume)
+        estimator.save(NET_PATH)
     else:
-        #trainer.load(NET_PATH)
-        trainer.load_checkpoint()
-        trainer.test(loaders['val'])
+        estimator.load(NET_PATH)
+        #estimator.test(loaders['val'])
+        data = loaders['val'].__iter__()
+        (inputs, targets) = data.next()
+        print(inputs.shape, targets.shape)
+        pred = estimator.predict(inputs)
+        print(pred.max(1))
+        

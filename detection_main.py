@@ -6,7 +6,7 @@ import sys
 from clearml import Task
 
 from oxfordpet_loader import create_loaders
-from fasterrcnn_trainer import FasterRCNNTrainer
+from fasterrcnn_detector import FasterRCNNDetector
 
 def parse_args():
     parser = argparse.ArgumentParser(description='PyTorch Training')
@@ -37,18 +37,20 @@ if __name__ == '__main__':
     }
     print(conf)
     conf = task.connect(conf)
+    category = {'background':0, 'dog':1, 'cat':2}
+    task.connect_label_enumeration(category)
     NET_PATH = './oxfordpet_net.pth'
 
     loaders = create_loaders(conf, use_cache=True)
     print(len(loaders['train']), len(loaders['val']))
     
     is_train = args.train
-    trainer = FasterRCNNTrainer(conf)
+    estimator = FasterRCNNDetector(conf)
     #sys.exit(-1)
     if is_train:
-        trainer.train(loaders, conf['epochs'], resume=args.resume)
-        trainer.save(NET_PATH)
+        estimator.fit(loaders, conf['epochs'], resume=args.resume)
+        estimator.save(NET_PATH)
     else:
         #trainer.load(NET_PATH)
-        trainer.load_checkpoint(NET_PATH)
-        trainer.test(loaders['val'])
+        estimator.load_checkpoint(NET_PATH)
+        estimator.test(loaders['val'])

@@ -12,7 +12,7 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from utils import progress_bar
 
 
-class FasterRCNNTrainer:
+class FasterRCNNDetector:
     net: FasterRCNN
     optimizer: optim.SGD
     scheduler: optim.lr_scheduler.CosineAnnealingLR
@@ -42,7 +42,7 @@ class FasterRCNNTrainer:
         self.tensorboard_writer = SummaryWriter('./tensorboard_logs')
 
 
-    def train(self, loaders: Dict[str, DataLoader], epochs: int, resume: bool=False) -> None:
+    def fit(self, loaders: Dict[str, DataLoader], epochs: int, resume: bool=False) -> None:
         self.start_epoch = 0
         if resume:
             self.load_checkpoint()
@@ -75,6 +75,7 @@ class FasterRCNNTrainer:
                              % (loss.item(),))
                     else:
                         pass
+                        # calculate IoU, mAP
                         #outputs = self.net(inputs)
                         #print(outputs)
                         '''
@@ -105,45 +106,53 @@ class FasterRCNNTrainer:
 
 
     def test(self, loader: DataLoader) -> None:
-        import matplotlib
-        import matplotlib.pyplot as plt
-        matplotlib.use('Agg')
-        from PIL import Image, ImageDraw
-        import numpy as np
-
         self.net.eval()
         device = self.device
 
         category = {0:'background', 1:'dog', 2:'cat'}
-
+        num_nms = 0
+        num_no_detect = 0
         with torch.no_grad():
             for batch_idx, (inputs, targets, image_ids) in enumerate(loader):
                 inputs = list(input.to(device) for input in inputs)
                 targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
                 outputs = self.net(inputs)
-                for input, output in zip(inputs, outputs):
+                for input, output, image_id in zip(inputs, outputs, image_ids):
                     keep = torchvision.ops.batched_nms(
                         output['boxes'],
                         output['scores'],
                         output['labels'],
-                        0.5
+                        0.3
                     )
-                    print(output['boxes'])
-                    bbox = output['boxes'][keep[0].item()] #.numpy()
-                    score = output['scores'][keep[0].item()] #.numpy()
-                    label = output['labels'][keep[0].item()] #.numpy()
-                    image = input.permute(1,2,0).numpy()
-                    image = Image.fromarray((image * 255).astype(np.uint8))
-                    
-                    #draw = ImageDraw.Draw(image)
-                    print(f'label: {label.item()}, score: {score.item()}')
-                    #print(bbox)
-                    #draw.rectangle([(bbox[0], bbox[1]), (bbox[2], bbox[3])], outline="red", width=3)
+                    #print(output['boxes'], keep)
+                    num_detected = len(output['boxes'])
+                    labels = [category[label] for label in output['labels'].tolist()]
+                    if not num_detected == len(keep):
+                        num_nms += 1
+                    if num_detected > 0:
+                        bbox = output['boxes'][keep[0].item()]
+                        score = output['scores'][keep[0].item()]
+                        label = output['labels'][keep[0].item()]
+                        print(f'label: {category[label.item()]}, score: {score.item()}')
+                        #self.tensorboard_writer.add_image('image', input)
+                        tag = f'{image_id}'
+                        self.tensorboard_writer.add_image_with_boxes(
+                            tag,
+                            input,
+                            output['boxes'],
+                            global_step=batch_idx,
+                            labels=labels
+                        )
+                    else:
+                        num_no_detect += 1
+        print(f'num nms: {num_nms}, no detected: {num_no_detect}')
+    
 
-                    #fig, ax = plt.subplot(1, 1)
-                    #ax.imshow(np.array(image))
-                    #self.tensorboard_writer.add_image('image', input)
-                    self.tensorboard_writer.add_image_with_boxes('bbox', input, output['boxes'])
+    def predict(self, x: torch.Tensor) -> torch.Tensor:
+        self.net.eval()
+        x.to(self.device)
+        return self.net(x)
+
 
     def save(self, path: str) -> None:
         torch.save(self.net.state_dict(), path)
