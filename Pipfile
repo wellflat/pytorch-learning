@@ -11,6 +11,7 @@ tensorboard = "*"
 pandas = "*"
 matplotlib = "*"
 tensorflow = "*"
+awscli = "*"
 
 [dev-packages]
 
