@@ -12,6 +12,7 @@ pandas = "*"
 matplotlib = "*"
 tensorflow = "*"
 awscli = "*"
+scikit-learn = "*"
 
 [dev-packages]
 

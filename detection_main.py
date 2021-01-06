@@ -22,10 +22,11 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     print(args)
+    task_type = Task.TaskTypes.training if args.train else Task.TaskTypes.testing
     task = Task.init(
         project_name='Object Detection',
         task_name='object_detection_OXFORDPET',
-        continue_last_task=False,
+        task_type=task_type,
         output_uri='./snapshot'
     )
     conf = {
@@ -48,6 +49,7 @@ if __name__ == '__main__':
     estimator = FasterRCNNDetector(conf)
     #sys.exit(-1)
     if is_train:
+        estimator.load_checkpoint(NET_PATH)
         estimator.fit(loaders, conf['epochs'], resume=args.resume)
         estimator.save(NET_PATH)
     else:

@@ -8,6 +8,7 @@ from torch.utils.tensorboard import SummaryWriter
 import torchvision
 from torchvision.models.detection import fasterrcnn_resnet50_fpn, FasterRCNN
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from torchvision.ops.boxes import box_iou
 
 from utils import progress_bar
 
@@ -49,23 +50,27 @@ class FasterRCNNDetector:
         
         self.net.train()
         device = self.device
-        
+        iter = 0
         for epoch in range(self.start_epoch, self.start_epoch + epochs):
             print('\nEpoch: %d' % (epoch,))
             for phase in ['train', 'val']:
                 if phase == 'train':
+                    continue
                     self.net.train()
                 else:
                     self.net.eval()
-
+                
                 running_loss = 0.0
+                correct = 0
+                total = 0
+
                 for batch_idx, (inputs, targets, image_ids) in enumerate(loaders[phase]):
                     inputs = list(input.to(device) for input in inputs)
                     targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
                     if phase == 'train':
                         loss_dict = self.net(inputs, targets)
                         # loss_dict: {'loss_classifier': tensor(0.9050, grad_fn=<NllLossBackward>), 'loss_box_reg': tensor(0.1463, grad_fn=<DivBackward0>), 'loss_objectness': tensor(0.0120, grad_fn=<BinaryCrossEntropyWithLogitsBackward>), 'loss_rpn_box_reg': tensor(0.0026, grad_fn=<DivBackward0>)} 
-                        loss = sum(loss for loss in loss_dict.values())
+                        loss: torch.Tensor = sum(loss for loss in loss_dict.values())
                         # loss: tensor(1.0659, grad_fn=<AddBackward0>)
                         self.optimizer.zero_grad()
                         loss.backward()
@@ -74,10 +79,23 @@ class FasterRCNNDetector:
                         progress_bar(batch_idx, len(loaders[phase]), 'Loss: %.5f'
                              % (loss.item(),))
                     else:
-                        pass
+                        #pass
                         # calculate IoU, mAP
-                        #outputs = self.net(inputs)
+                        
+                        if not iter == 0:
+                            import sys
+                            sys.exit(0)
+                        outputs = self.net(inputs)
                         #print(outputs)
+                        iter += 1
+                        total += targets.size(0)
+                        correct += predicted.eq(targets).sum().item()
+                        accuracy = 100.*correct/total
+                        iou = [box_iou(boxes1, boxes2) for (boxes1, boxes2) in zip(outputs, targets)]
+                        iou = box_iou(outputs[batch_idx]['boxes'], targets[batch_idx]['boxes'])
+                        if len(filtered_iou) > 0:
+                            print(iou[iou < 0.5])
+                            correct += 1
                         '''
                         [{'boxes': tensor([[119.1820,  45.1547, 324.0118, 240.4593],
                                            [100.1194,  93.6662, 349.3770, 330.9216],
