@@ -147,14 +147,16 @@ def create_loaders(conf: Dict, use_cache: bool=True) -> Dict[str, DataLoader]:
         batch_size=conf.get('batch_size', 1),
         shuffle=True,
         collate_fn=collate_fn,
-        num_workers=2
+        num_workers=2,
+        pin_memory=True
     )
     valloader = DataLoader(
         val,
         batch_size=conf.get('batch_size', 1),
         shuffle=False,
         collate_fn=collate_fn,
-        num_workers=2
+        num_workers=2,
+        pin_memory=True
     )
     return {
         'train': trainloader,

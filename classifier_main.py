@@ -3,7 +3,6 @@
 
 import argparse
 from clearml import Task
-
 from cifar10_loader import create_loaders
 from resnet_classifier import ResNetClassifier
 

@@ -1,5 +1,5 @@
 
-from typing import Dict
+from typing import Dict, List
 import torch
 from torch import optim
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
@@ -9,6 +9,7 @@ import torchvision
 from torchvision.models.detection import fasterrcnn_resnet50_fpn, FasterRCNN
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.ops.boxes import box_iou
+import tqdm
 
 from utils import progress_bar
 
@@ -18,15 +19,13 @@ class FasterRCNNDetector:
     optimizer: optim.SGD
     scheduler: optim.lr_scheduler.CosineAnnealingLR
     start_epoch: int
-    tensorboard_writer: SummaryWriter
+    log_writer: SummaryWriter
 
 
     def __init__(self, conf: dict) -> None:
         super().__init__()
         self.net = self.__prepare_net(conf.get('classes', 3))
         param = [p for p in self.net.parameters() if p.requires_grad]
-        #print(list(self.net.children())[-1])
-        #print(f'num requires_grad: {len(param)}')
         self.optimizer = optim.SGD(
             param,
             lr=conf.get('base_lr', 0.01),
@@ -36,98 +35,100 @@ class FasterRCNNDetector:
         #self.schedular = StepLR(self.optimizer, step_size=25, gamma=0.1)
         self.schedular = CosineAnnealingLR(self.optimizer, T_max=5, eta_min=0.001)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        torch.backends.cudnn.benchmark = True
+        torch.backends.cudnn.benchmark = True if torch.cuda.is_available() else False
         self.net.to(self.device)
         self.best_acc = 0.0
         self.start_epoch = 0
-        self.tensorboard_writer = SummaryWriter('./tensorboard_logs')
+        self.log_writer = SummaryWriter('./tensorboard_logs')
 
 
     def fit(self, loaders: Dict[str, DataLoader], epochs: int, resume: bool=False) -> None:
         self.start_epoch = 0
         if resume:
             self.load_checkpoint()
-        
-        self.net.train()
-        device = self.device
-        iter = 0
+        val_loss = self.__validate(loaders['val'])
+        return
         for epoch in range(self.start_epoch, self.start_epoch + epochs):
             print('\nEpoch: %d' % (epoch,))
-            for phase in ['train', 'val']:
-                if phase == 'train':
-                    continue
-                    self.net.train()
-                else:
-                    self.net.eval()
-                
-                running_loss = 0.0
-                correct = 0
-                total = 0
+            train_loss = self.__train(loaders['train'])
+            epoch_loss = train_loss / len(loaders['train'])
+            print('lr: %f' % (self.schedular.get_last_lr()[0]))
+            self.log_writer.add_scalar('training loss', epoch_loss, epoch)
 
-                for batch_idx, (inputs, targets, image_ids) in enumerate(loaders[phase]):
-                    inputs = list(input.to(device) for input in inputs)
-                    targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-                    if phase == 'train':
-                        loss_dict = self.net(inputs, targets)
-                        # loss_dict: {'loss_classifier': tensor(0.9050, grad_fn=<NllLossBackward>), 'loss_box_reg': tensor(0.1463, grad_fn=<DivBackward0>), 'loss_objectness': tensor(0.0120, grad_fn=<BinaryCrossEntropyWithLogitsBackward>), 'loss_rpn_box_reg': tensor(0.0026, grad_fn=<DivBackward0>)} 
-                        loss: torch.Tensor = sum(loss for loss in loss_dict.values())
-                        # loss: tensor(1.0659, grad_fn=<AddBackward0>)
-                        self.optimizer.zero_grad()
-                        loss.backward()
-                        self.optimizer.step()
-                        running_loss += loss.item()
-                        progress_bar(batch_idx, len(loaders[phase]), 'Loss: %.5f'
-                             % (loss.item(),))
-                    else:
-                        #pass
-                        # calculate IoU, mAP
-                        
-                        if not iter == 0:
-                            import sys
-                            sys.exit(0)
-                        outputs = self.net(inputs)
-                        #print(outputs)
-                        iter += 1
-                        total += targets.size(0)
-                        correct += predicted.eq(targets).sum().item()
-                        accuracy = 100.*correct/total
-                        iou = [box_iou(boxes1, boxes2) for (boxes1, boxes2) in zip(outputs, targets)]
-                        iou = box_iou(outputs[batch_idx]['boxes'], targets[batch_idx]['boxes'])
-                        if len(filtered_iou) > 0:
-                            print(iou[iou < 0.5])
-                            correct += 1
-                        '''
-                        [{'boxes': tensor([[119.1820,  45.1547, 324.0118, 240.4593],
-                                           [100.1194,  93.6662, 349.3770, 330.9216],
-                                           [241.9631,  69.2862, 275.3797, 118.3835],
-                                           [177.3464, 127.1679, 327.4431, 272.7445]], device='cuda:0', grad_fn=<StackBackward>),
-                          'labels': tensor([1, 1, 1, 1], device='cuda:0'),
-                          'scores': tensor([0.9971, 0.0896, 0.0844, 0.0558], device='cuda:0', grad_fn=<IndexBackward>)},
-                         {'boxes': ... ]
-                         '''
+            val_loss = self.__validate(loaders['val'])
+
+            self.schedular.step()
+
+            print('saving checkpoint...')
+            state = {
+                'net': self.net.state_dict(),
+                'epoch': epoch
+            }
+            torch.save(state, './checkpoint/model.pth') 
+              
+
+    def __train(self, loader: DataLoader) -> float:
+        self.net.train()
+        running_loss = 0.0
+        for batch_idx, (inputs, targets, image_ids) in enumerate(loader):
+            inputs = list(input.to(self.device) for input in inputs)
+            targets = [{k: v.to(self.device) for k, v in t.items()} for t in targets]
+            
+            loss_dict = self.net(inputs, targets)
+            # loss_dict: {'loss_classifier': tensor(0.9050, grad_fn=<NllLossBackward>), 'loss_box_reg': tensor(0.1463, grad_fn=<DivBackward0>), 'loss_objectness': tensor(0.0120, grad_fn=<BinaryCrossEntropyWithLogitsBackward>), 'loss_rpn_box_reg': tensor(0.0026, grad_fn=<DivBackward0>)} 
+            loss: torch.Tensor = sum(loss for loss in loss_dict.values())
+            # loss: tensor(1.0659, grad_fn=<AddBackward0>)
+            self.optimizer.zero_grad()
+            loss.backward()
+            self.optimizer.step()
+            running_loss += loss.item()
+            progress_bar(batch_idx, len(loader), 'Loss: %.5f' % (loss.item(),))
+        
+        return running_loss
+        
+
+    def __validate(self, loader: DataLoader):
+        self.net.eval()
+        running_loss = 0.0
+        total = 0
+        correct = 0
+        i = 0
+        for batch_idx, (inputs, targets, image_ids) in enumerate(loader):
+            inputs = list(input.to(self.device) for input in inputs)
+            targets = [{k: v.to(self.device) for k, v in t.items()} for t in targets]
+            with torch.no_grad():
+                outputs = self.net(inputs)
+                '''
+                [{'boxes': tensor([[119.1820,  45.1547, 324.0118, 240.4593],
+                                   [100.1194,  93.6662, 349.3770, 330.9216],
+                                   [241.9631,  69.2862, 275.3797, 118.3835],
+                                   [177.3464, 127.1679, 327.4431, 272.7445]], device='cuda:0', grad_fn=<StackBackward>),
+                  'labels': tensor([1, 1, 1, 1], device='cuda:0'),
+                  'scores': tensor([0.9971, 0.0896, 0.0844, 0.0558], device='cuda:0', grad_fn=<IndexBackward>)},
+                 {'boxes': ... ]
+                 '''
+            
+            for output, target in zip(outputs, targets):
+                if len(output['boxes']) > 0:
+                    print(len(output['boxes']), len(target['boxes']))
+                    print(output['scores'])
+                    iou = box_iou(output['boxes'], target['boxes'])
+                    print(iou)
+            
+            if i > 5:
+                import sys
+                sys.exit(0)
+            i += 1
                     
-                if phase == 'train':
-                    epoch_loss = running_loss / len(loaders[phase])
-                    self.schedular.step()
-                    print('lr: %f' % (self.schedular.get_last_lr()[0]))
-                    self.tensorboard_writer.add_scalar('training loss', epoch_loss, epoch)
-                #else:
-                #    self.tensorboard_writer.add_scalar('validation accuracy', epoch_acc, epoch)
-                
-                if phase == 'val':
-                    print('saving checkpoint...')
-                    state = {
-                        'net': self.net.state_dict(),
-                        'epoch': epoch
-                    }
-                    torch.save(state, './checkpoint/model.pth')                
 
 
-    def test(self, loader: DataLoader) -> None:
+
+    def test(self, loader: DataLoader, category) -> None:
         self.net.eval()
         device = self.device
 
-        category = {0:'background', 1:'dog', 2:'cat'}
+        categories = ['background', 'dog', 'cat']
+
         num_nms = 0
         num_no_detect = 0
         with torch.no_grad():
@@ -151,10 +152,9 @@ class FasterRCNNDetector:
                         bbox = output['boxes'][keep[0].item()]
                         score = output['scores'][keep[0].item()]
                         label = output['labels'][keep[0].item()]
-                        print(f'label: {category[label.item()]}, score: {score.item()}')
-                        #self.tensorboard_writer.add_image('image', input)
+                        print(f'label: {categories[label.item()]}, score: {score.item()}')
                         tag = f'{image_id}'
-                        self.tensorboard_writer.add_image_with_boxes(
+                        self.log_writer.add_image_with_boxes(
                             tag,
                             input,
                             output['boxes'],

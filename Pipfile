@@ -13,6 +13,8 @@ matplotlib = "*"
 tensorflow = "*"
 awscli = "*"
 scikit-learn = "*"
+allegroai = "*"
+pathlib2 = "*"
 
 [dev-packages]
 

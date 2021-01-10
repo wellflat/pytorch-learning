@@ -22,6 +22,7 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     print(args)
+    Task.set_offline(True)
     task_type = Task.TaskTypes.training if args.train else Task.TaskTypes.testing
     task = Task.init(
         project_name='Object Detection',
@@ -51,7 +52,7 @@ if __name__ == '__main__':
     if is_train:
         estimator.load_checkpoint(NET_PATH)
         estimator.fit(loaders, conf['epochs'], resume=args.resume)
-        estimator.save(NET_PATH)
+        #estimator.save(NET_PATH)
     else:
         #trainer.load(NET_PATH)
         estimator.load_checkpoint(NET_PATH)
