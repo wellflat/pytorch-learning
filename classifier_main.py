@@ -45,10 +45,11 @@ if __name__ == '__main__':
         estimator.save(NET_PATH)
     else:
         estimator.load(NET_PATH)
-        #estimator.test(loaders['val'])
+        estimator.test(loaders['val'])
+        '''
         data = loaders['val'].__iter__()
         (inputs, targets) = data.next()
         print(inputs.shape, targets.shape)
         pred = estimator.predict(inputs)
         print(pred.max(1))
-        
+        '''

@@ -1,4 +1,5 @@
 
+from threading import active_count
 from typing import Any, Dict, Tuple
 from time import sleep
 import torch
@@ -49,7 +50,10 @@ class ResNetClassifier:
         if resume:
             best_acc, start_epoch = self.load_checkpoint()
         
-        progress = tqdm(range(start_epoch, start_epoch + epochs), total=epochs, initial=start_epoch, ncols=120, position=0)
+        progress = tqdm(
+            range(start_epoch, start_epoch + epochs),
+            total=epochs, initial=start_epoch, ncols=120, position=0
+        )
         progress.set_description('Epoch')
         for epoch in progress:
             loss = self.__train(loaders['train'])
@@ -98,9 +102,6 @@ class ResNetClassifier:
                 'acc': accuracy
             })
 
-            #progress_bar(batch_idx, len(loader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-            #             % (running_loss/(batch_idx+1), accuracy, correct, total))
-
         epoch_loss = running_loss / len(loader)
         return epoch_loss
     
@@ -121,33 +122,32 @@ class ResNetClassifier:
             accuracy = 100.*correct/total
 
             progress.set_postfix({'acc': accuracy})
-            #progress_bar(batch_idx, len(loaders[phase]), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-            #             % (running_loss/(batch_idx+1), accuracy, correct, total))
                 
         epoch_accuracy = 100.*correct / len(loader.dataset)
         return epoch_accuracy
 
 
-
     def test(self, loader: DataLoader) -> None:
         self.net.eval()
         device = self.device
-        test_loss = 0
         correct = 0
         total = 0
-        with torch.no_grad():
-            for batch_idx, (inputs, targets) in enumerate(loader):
-                inputs, targets = inputs.to(device), targets.to(device)
-                outputs = self.net(inputs)
-                loss = self.criterion(outputs, targets)
 
-                test_loss += loss.item()
-                _, predicted = outputs.max(1)
-                total += targets.size(0)
-                correct += predicted.eq(targets).sum().item()
+        progress = tqdm(enumerate(loader), total=len(loader), ncols=120)
+        progress.set_description('Test')
+        for batch_idx, (inputs, targets) in progress:
+            inputs, targets = inputs.to(device), targets.to(device)
+            with torch.no_grad():
+                outputs: torch.Tensor = self.net(inputs)
+            _, predicted = outputs.max(1)
+            total += targets.size(0)
+            correct += predicted.eq(targets).sum().item()
+            accuracy = 100.*correct/total
 
-                progress_bar(batch_idx, len(loader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                         % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
+            progress.set_postfix({'acc': accuracy})
+        
+        test_accuracy = 100.*correct / len(loader.dataset)
+        print(f'test accuracy: {test_accuracy}')
 
 
     def predict(self, x: torch.Tensor) -> torch.Tensor:
