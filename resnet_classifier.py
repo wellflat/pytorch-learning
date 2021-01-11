@@ -169,7 +169,7 @@ class ResNetClassifier:
 
 
     def load_checkpoint(self) -> Tuple[int, float]:
-        filepath = f'{self.__class__.__name__}_model.pth'
+        filepath = f'./checkpoint/{self.__class__.__name__}_model.pth'
         checkpoint = torch.load(filepath, map_location=self.device)
         self.net.load_state_dict(checkpoint['net'])
         return (checkpoint['epoch'], checkpoint['acc'])
