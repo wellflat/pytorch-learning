@@ -7,10 +7,10 @@ from cifar10_loader import create_loaders
 from resnet_classifier import ResNetClassifier
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='PyTorch Training')
+    parser = argparse.ArgumentParser(description='Classifier Training')
     parser.add_argument('--train', '-t', action='store_true', help='training mode')
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
-    parser.add_argument('--epochs', default=200, type=int, help='epochs')
+    parser.add_argument('--epochs', default=100, type=int, help='epochs')
     parser.add_argument('--batch_size', default=256, type=int, help='batch size')
     parser.add_argument('--resume', '-r', action='store_true',
                         help='resume from checkpoint')
@@ -22,7 +22,7 @@ if __name__ == '__main__':
     print(args)
     task = Task.init(
         project_name='Image Classification',
-        task_name='image_classification_CIFAR10',
+        task_name='image_classification_cifar10',
         output_uri='./snapshot'
     )
     conf = {

@@ -6,7 +6,7 @@ from torchvision import transforms
 
 
 def create_loaders(conf: Dict) -> Dict[str, DataLoader]:
-    print('==> Preparing data..')
+    print('==> loading cifar10 dataset')
     transform = {
         'train': transforms.Compose([
             transforms.RandomCrop(32, padding=4),
@@ -43,7 +43,9 @@ def create_loaders(conf: Dict) -> Dict[str, DataLoader]:
     )
     trainloader = DataLoader(
         trainset, batch_size=conf['batch_size'],
-        shuffle=True, num_workers=2
+        shuffle=True,
+        num_workers=2,
+        pin_memory=True
     )
 
     testset = torchvision.datasets.CIFAR10(
@@ -54,7 +56,9 @@ def create_loaders(conf: Dict) -> Dict[str, DataLoader]:
     )
     testloader = DataLoader(
         testset, batch_size=200,
-        shuffle=False, num_workers=2
+        shuffle=False,
+        num_workers=2,
+        pin_memory=True
     )
 
     print(trainset.data.shape)

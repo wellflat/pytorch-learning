@@ -9,7 +9,7 @@ import torchvision
 from torchvision.models.detection import fasterrcnn_resnet50_fpn, FasterRCNN
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.ops.boxes import box_iou
-import tqdm
+from tqdm import tqdm
 
 from utils import progress_bar
 
@@ -93,6 +93,7 @@ class FasterRCNNDetector:
         total = 0
         correct = 0
         i = 0
+        #for batch_idx, (inputs, targets, image_ids) in tqdm(enumerate(loader), total=len(loader)):
         for batch_idx, (inputs, targets, image_ids) in enumerate(loader):
             inputs = list(input.to(self.device) for input in inputs)
             targets = [{k: v.to(self.device) for k, v in t.items()} for t in targets]
@@ -111,7 +112,7 @@ class FasterRCNNDetector:
             for output, target in zip(outputs, targets):
                 if len(output['boxes']) > 0:
                     print(len(output['boxes']), len(target['boxes']))
-                    print(output['scores'])
+                    print(output['scores'], output['labels'])
                     iou = box_iou(output['boxes'], target['boxes'])
                     print(iou)
             

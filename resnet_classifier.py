@@ -1,6 +1,5 @@
 
-from __future__ import annotations
-from typing import Dict
+from typing import Any, Dict, Tuple
 import torch
 from torch import nn, optim
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
@@ -8,9 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 from torchvision import models
 from torchvision.models.resnet import ResNet
 from torch.utils.data import DataLoader
-from clearml import Logger
-
-from utils import progress_bar
+from tqdm import tqdm
 
 
 class ResNetClassifier:
@@ -18,12 +15,10 @@ class ResNetClassifier:
     criterion: nn.CrossEntropyLoss
     optimizer: optim.SGD
     scheduler: optim.lr_scheduler.CosineAnnealingLR
-    best_acc: float
-    start_epoch: int
-    #tensorboard_writer: SummaryWriter
-    logger: Logger
+    logger: SummaryWriter
 
-    def __init__(self, conf: Dict, logger: Logger, is_finetune: bool=True) -> None:
+
+    def __init__(self, conf: Dict[str, Any], is_finetune: bool=True) -> None:
         super().__init__()
         self.net = self.__prepare_net(conf['classes'], pretrained=is_finetune)
         self.criterion = nn.CrossEntropyLoss()
@@ -40,15 +35,40 @@ class ResNetClassifier:
         #self.schedular = StepLR(self.optimizer, step_size=25, gamma=0.1)
         self.schedular = CosineAnnealingLR(self.optimizer, T_max=100)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        torch.backends.cudnn.benchmark = True if torch.cuda.is_available() else False
         self.net.to(self.device)
-        torch.backends.cudnn.benchmark = True
         self.best_acc = 0.0
         self.start_epoch = 0
-        #self.tensorboard_writer = SummaryWriter('./tensorboard_logs')
-        self.logger = logger
+        self.logger = SummaryWriter('./tensorboard_logs')
         
     
-    def fit(self, loaders: Dict[str, DataLoader], epochs: int, resume: bool=False) -> __class__:
+    def fit(self, loaders: Dict[str, DataLoader], epochs: int, resume: bool=False) -> None:
+        best_acc = 0.0
+        start_epoch = 0
+        if resume:
+            best_acc, start_epoch = self.load_checkpoint()
+        
+        for epoch in range(start_epoch, start_epoch + epochs):
+            print('\nEpoch: %d' % (epoch,))
+            loss = self.__train(loaders['train'])
+            self.logger.add_scalar('training loss', loss)
+            val_acc = self.__validate(loaders['val'])
+            self.logger.add_scalar('validation accuracy', val_acc)
+            self.schedular.step()
+            print('lr: %f' % (self.schedular.get_last_lr()[0]))
+            
+            if val_acc > best_acc:
+                print('saving checkpoint...')
+                best_acc = val_acc
+                state = {
+                    'net': self.net.state_dict(),
+                    'acc': best_acc,
+                    'epoch': epoch
+                }
+                self.save_checkpoint(state)
+
+
+    def _fit(self, loaders: Dict[str, DataLoader], epochs: int, resume: bool=False) -> None:
         self.best_acc = 0.0
         self.start_epoch = 0
         if resume:
@@ -72,7 +92,7 @@ class ResNetClassifier:
                 for batch_idx, (inputs, targets) in enumerate(loaders[phase]):
                     inputs, targets = inputs.to(device), targets.to(device)
                     self.optimizer.zero_grad()
-                    outputs = self.net(inputs)
+                    outputs: torch.Tensor = self.net(inputs)
                     loss = self.criterion(outputs, targets)
                     if phase == 'train':
                         loss.backward()
@@ -93,10 +113,8 @@ class ResNetClassifier:
                 if phase == 'train':
                     self.schedular.step()
                     print('lr: %f' % (self.schedular.get_last_lr()[0]))
-                    #self.tensorboard_writer.add_scalar('training loss', epoch_loss, epoch)
                     self.logger.report_scalar('training loss', 'epochs', epoch_loss, epoch)
                 else:
-                    #self.tensorboard_writer.add_scalar('validation accuracy', epoch_acc, epoch)
                     self.logger.report_scalar('validation accuracy', 'epochs', epoch_acc, epoch)
                 
                 if phase == 'val' and epoch_acc > self.best_acc:
@@ -110,8 +128,54 @@ class ResNetClassifier:
                     self.best_acc = epoch_acc
         
         return self
-                
+
+
+    def __train(self, loader: DataLoader) -> float:
+        self.net.train()
+        running_loss = 0.0
+        correct = 0
+        total = 0
+        for batch_idx, (inputs, targets) in tqdm(enumerate(loader), total=len(loader)):
+            inputs, targets = inputs.to(self.device), targets.to(self.device)
+            self.optimizer.zero_grad()
+            outputs = self.net(inputs)
+            loss = self.criterion(outputs, targets)
+            loss.backward()
+            self.optimizer.step()
+            running_loss += loss.item()
+            _, predicted = outputs.max(1)
+            total += targets.size(0)
+            correct += predicted.eq(targets).sum().item()
+            accuracy = 100.*correct/total
+
+            #progress_bar(batch_idx, len(loader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+            #             % (running_loss/(batch_idx+1), accuracy, correct, total))
+
+        epoch_loss = running_loss / len(loader)
+        return epoch_loss
     
+
+    def __validate(self, loader: DataLoader) -> float:
+        self.net.eval()
+        correct = 0
+        total = 0
+        for batch_idx, (inputs, targets) in tqdm(enumerate(loader), total=len(loader)):
+            inputs, targets = inputs.to(self.device), targets.to(self.device)
+            with torch.no_grad():
+                outputs: torch.Tensor = self.net(inputs)
+            _, predicted = outputs.max(1)
+            total += targets.size(0)
+            correct += predicted.eq(targets).sum().item()
+            accuracy = 100.*correct/total
+
+            #progress_bar(batch_idx, len(loaders[phase]), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+            #             % (running_loss/(batch_idx+1), accuracy, correct, total))
+                
+        epoch_accuracy = 100.*correct / len(loader.dataset)
+        return epoch_accuracy
+
+
+
     def test(self, loader: DataLoader) -> None:
         self.net.eval()
         device = self.device
@@ -151,12 +215,16 @@ class ResNetClassifier:
         self.net.load_state_dict(torch.load(path, map_location=self.device))
 
 
-    def load_checkpoint(self, path: str='./checkpoint/model.pth') -> None:
-        checkpoint = torch.load(path, map_location=self.device)
+    def load_checkpoint(self) -> Tuple[int, float]:
+        filepath = f'{self.__class__.__name__}_model.pth'
+        checkpoint = torch.load(filepath, map_location=self.device)
         self.net.load_state_dict(checkpoint['net'])
-        self.best_acc = checkpoint['acc']
-        self.start_epoch = checkpoint['epoch']
-        print(self.start_epoch, self.best_acc)
+        return (checkpoint['epoch'], checkpoint['acc'])
+
+
+    def save_checkpoint(self, state: Dict[str, Any]) -> None:
+        filepath = f'./checkpoint/{self.__class__.__name__}_model.pth'
+        torch.save(state, filepath)
     
 
     def __prepare_net(self, num_classes: int, pretrained: bool) -> ResNet:

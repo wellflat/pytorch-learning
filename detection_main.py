@@ -57,3 +57,6 @@ if __name__ == '__main__':
         #trainer.load(NET_PATH)
         estimator.load_checkpoint(NET_PATH)
         estimator.test(loaders['val'])
+
+def check_size(loader: DataLoader):
+    
