@@ -39,8 +39,8 @@ if __name__ == '__main__':
     }
     print(conf)
     conf = task.connect(conf)
-    category = {'background':0, 'dog':1, 'cat':2}
-    task.connect_label_enumeration(category)
+    categories = {'background':0, 'dog':1, 'cat':2}
+    task.connect_label_enumeration(categories)
     NET_PATH = './oxfordpet_net.pth'
 
     loaders = create_loaders(conf, use_cache=True)
@@ -54,9 +54,8 @@ if __name__ == '__main__':
         estimator.fit(loaders, conf['epochs'], resume=args.resume)
         #estimator.save(NET_PATH)
     else:
-        #trainer.load(NET_PATH)
-        estimator.load_checkpoint(NET_PATH)
-        estimator.test(loaders['val'])
+        estimator.load(NET_PATH)
+        category_list = [c for c in categories.keys()]
+        estimator.test(loaders['val'], category_list)
 
-def check_size(loader: DataLoader):
     

@@ -1,5 +1,5 @@
 
-from typing import Dict, List
+from typing import Any, Dict, List, Tuple
 import torch
 from torch import optim
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
@@ -11,15 +11,13 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.ops.boxes import box_iou
 from tqdm import tqdm
 
-from utils import progress_bar
-
 
 class FasterRCNNDetector:
     net: FasterRCNN
     optimizer: optim.SGD
     scheduler: optim.lr_scheduler.CosineAnnealingLR
     start_epoch: int
-    log_writer: SummaryWriter
+    logger: SummaryWriter
 
 
     def __init__(self, conf: dict) -> None:
@@ -37,43 +35,53 @@ class FasterRCNNDetector:
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         torch.backends.cudnn.benchmark = True if torch.cuda.is_available() else False
         self.net.to(self.device)
-        self.best_acc = 0.0
-        self.start_epoch = 0
-        self.log_writer = SummaryWriter('./tensorboard_logs')
+        self.logger = SummaryWriter('./tensorboard_logs')
 
 
     def fit(self, loaders: Dict[str, DataLoader], epochs: int, resume: bool=False) -> None:
-        self.start_epoch = 0
+        best_acc = 0.0
+        start_epoch = 0
         if resume:
-            self.load_checkpoint()
+            best_acc, start_epoch = self.load_checkpoint()
+        
         val_loss = self.__validate(loaders['val'])
         return
-        for epoch in range(self.start_epoch, self.start_epoch + epochs):
-            print('\nEpoch: %d' % (epoch,))
-            train_loss = self.__train(loaders['train'])
-            epoch_loss = train_loss / len(loaders['train'])
-            print('lr: %f' % (self.schedular.get_last_lr()[0]))
-            self.log_writer.add_scalar('training loss', epoch_loss, epoch)
 
-            val_loss = self.__validate(loaders['val'])
-
+        progress = tqdm(
+            range(start_epoch, start_epoch + epochs),
+            total=epochs, initial=start_epoch, ncols=120, position=0
+        )
+        progress.set_description('Epoch')
+        for epoch in progress:
+            loss = self.__train(loaders['train'])
+            self.logger.add_scalar('training loss', loss, epoch)
+            val_acc = self.__validate(loaders['val'])
+            self.logger.add_scalar('validation accuracy', val_acc, epoch)
             self.schedular.step()
+            lr = self.schedular.get_last_lr()[0]
+            self.logger.add_scalar('learning rate', lr, epoch)
 
-            print('saving checkpoint...')
-            state = {
-                'net': self.net.state_dict(),
-                'epoch': epoch
-            }
-            torch.save(state, './checkpoint/model.pth') 
+            if val_acc > best_acc:
+                tqdm.write('saving checkpoint...')
+                best_acc = val_acc
+                state = {
+                    'net': self.net.state_dict(),
+                    'acc': best_acc,
+                    'epoch': epoch
+                }
+                self.save_checkpoint(state)
+
+            progress.set_postfix({'loss': loss, 'acc': val_acc, 'lr': lr})
               
 
     def __train(self, loader: DataLoader) -> float:
         self.net.train()
         running_loss = 0.0
-        for batch_idx, (inputs, targets, image_ids) in enumerate(loader):
+        progress = tqdm(enumerate(loader), total=len(loader), leave=False, ncols=120, position=1)
+        progress.set_description('Train')
+        for batch_idx, (inputs, targets, image_ids) in progress:
             inputs = list(input.to(self.device) for input in inputs)
-            targets = [{k: v.to(self.device) for k, v in t.items()} for t in targets]
-            
+            targets = [{k: v.to(self.device) for k, v in t.items()} for t in targets] 
             loss_dict = self.net(inputs, targets)
             # loss_dict: {'loss_classifier': tensor(0.9050, grad_fn=<NllLossBackward>), 'loss_box_reg': tensor(0.1463, grad_fn=<DivBackward0>), 'loss_objectness': tensor(0.0120, grad_fn=<BinaryCrossEntropyWithLogitsBackward>), 'loss_rpn_box_reg': tensor(0.0026, grad_fn=<DivBackward0>)} 
             loss: torch.Tensor = sum(loss for loss in loss_dict.values())
@@ -82,12 +90,17 @@ class FasterRCNNDetector:
             loss.backward()
             self.optimizer.step()
             running_loss += loss.item()
-            progress_bar(batch_idx, len(loader), 'Loss: %.5f' % (loss.item(),))
+            #progress_bar(batch_idx, len(loader), 'Loss: %.5f' % (loss.item(),))
+
+            progress.set_postfix({
+                'loss': (running_loss/(batch_idx+1))
+            })
         
-        return running_loss
+        epoch_loss = running_loss / len(loader)
+        return epoch_loss
         
 
-    def __validate(self, loader: DataLoader):
+    def __validate(self, loader: DataLoader) -> float:
         self.net.eval()
         running_loss = 0.0
         total = 0
@@ -120,50 +133,53 @@ class FasterRCNNDetector:
                 import sys
                 sys.exit(0)
             i += 1
-                    
+        
+        return 1.0
+    
 
-
-
-    def test(self, loader: DataLoader, category) -> None:
+    def test(self, loader: DataLoader, categories: List[str]) -> None:
         self.net.eval()
         device = self.device
 
-        categories = ['background', 'dog', 'cat']
-
         num_nms = 0
         num_no_detect = 0
-        with torch.no_grad():
-            for batch_idx, (inputs, targets, image_ids) in enumerate(loader):
-                inputs = list(input.to(device) for input in inputs)
-                targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-                outputs = self.net(inputs)
-                for input, output, image_id in zip(inputs, outputs, image_ids):
-                    keep = torchvision.ops.batched_nms(
+
+        progress = tqdm(enumerate(loader), total=len(loader), ncols=120)
+        progress.set_description('Test')
+        for batch_idx, (inputs, targets, image_ids) in progress:
+            inputs = list(input.to(device) for input in inputs)
+            targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+            with torch.no_grad():
+                outputs: torch.Tensor = self.net(inputs)
+                
+            for input, output, image_id in zip(inputs, outputs, image_ids):
+                keep = torchvision.ops.batched_nms(
+                    output['boxes'],
+                    output['scores'],
+                    output['labels'],
+                    0.3
+                )
+                #print(output['boxes'], keep)
+                num_detected = len(output['boxes'])
+                labels = [categories[label] for label in output['labels'].tolist()]
+                if not num_detected == len(keep):
+                    num_nms += 1
+                if num_detected > 0:
+                    bbox = output['boxes'][keep[0].item()]
+                    score = output['scores'][keep[0].item()]
+                    label = output['labels'][keep[0].item()]
+                    tqdm.write(f'label: {categories[label.item()]}, score: {score.item()}')
+                    tag = f'{image_id}'
+                    self.logger.add_image_with_boxes(
+                        tag,
+                        input,
                         output['boxes'],
-                        output['scores'],
-                        output['labels'],
-                        0.3
+                        global_step=batch_idx,
+                        labels=labels
                     )
-                    #print(output['boxes'], keep)
-                    num_detected = len(output['boxes'])
-                    labels = [category[label] for label in output['labels'].tolist()]
-                    if not num_detected == len(keep):
-                        num_nms += 1
-                    if num_detected > 0:
-                        bbox = output['boxes'][keep[0].item()]
-                        score = output['scores'][keep[0].item()]
-                        label = output['labels'][keep[0].item()]
-                        print(f'label: {categories[label.item()]}, score: {score.item()}')
-                        tag = f'{image_id}'
-                        self.log_writer.add_image_with_boxes(
-                            tag,
-                            input,
-                            output['boxes'],
-                            global_step=batch_idx,
-                            labels=labels
-                        )
-                    else:
-                        num_no_detect += 1
+                else:
+                    num_no_detect += 1
+        
         print(f'num nms: {num_nms}, no detected: {num_no_detect}')
     
 
@@ -173,19 +189,28 @@ class FasterRCNNDetector:
         return self.net(x)
 
 
+    def load(self, path: str) -> None:
+        #self.net.load_state_dict(torch.load(path, map_location=self.device))
+
+        checkpoint = torch.load(path, map_location=self.device)
+        self.net.load_state_dict(checkpoint['net'])
+    
+
     def save(self, path: str) -> None:
         torch.save(self.net.state_dict(), path)
 
 
-    def load(self, path: str) -> None:
-        self.net.load_state_dict(torch.load(path, map_location=self.device))
-
-
-    def load_checkpoint(self, path: str='./checkpoint/model.pth') -> None:
-        checkpoint = torch.load(path, map_location=self.device)
+    def load_checkpoint(self) -> Tuple[int, float]:
+        filepath = f'./checkpoint/{self.__class__.__name__}_model.pth'
+        checkpoint = torch.load(filepath, map_location=self.device)
         self.net.load_state_dict(checkpoint['net'])
-        self.start_epoch = checkpoint['epoch'] + 1
+        return (checkpoint['epoch'], checkpoint['acc'])
 
+
+    def save_checkpoint(self, state: Dict[str, Any]) -> None:
+        filepath = f'./checkpoint/{self.__class__.__name__}_model.pth'
+        torch.save(state, filepath)
+    
 
     def __prepare_net(self, num_classes: int) -> FasterRCNN:
         net = fasterrcnn_resnet50_fpn(pretrained=True, trainable_backbone_layers=3)

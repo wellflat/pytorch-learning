@@ -1,7 +1,5 @@
 
-from threading import active_count
 from typing import Any, Dict, Tuple
-from time import sleep
 import torch
 from torch import nn, optim
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
@@ -159,13 +157,13 @@ class ResNetClassifier:
     def score(self, x: torch.Tensor, y: torch.Tensor) -> float:
         pass
 
-    
-    def save(self, path: str) -> None:
-        torch.save(self.net.state_dict(), path)
-
 
     def load(self, path: str) -> None:
         self.net.load_state_dict(torch.load(path, map_location=self.device))
+    
+
+    def save(self, path: str) -> None:
+        torch.save(self.net.state_dict(), path)
 
 
     def load_checkpoint(self) -> Tuple[int, float]:
