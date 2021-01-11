@@ -1,5 +1,6 @@
 
 from typing import Any, Dict, Tuple
+from time import sleep
 import torch
 from torch import nn, optim
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
@@ -33,7 +34,7 @@ class ResNetClassifier:
             weight_decay=5e-4
         )
         #self.schedular = StepLR(self.optimizer, step_size=25, gamma=0.1)
-        self.schedular = CosineAnnealingLR(self.optimizer, T_max=100)
+        self.schedular = CosineAnnealingLR(self.optimizer, T_max=10)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         torch.backends.cudnn.benchmark = True if torch.cuda.is_available() else False
         self.net.to(self.device)
@@ -48,17 +49,19 @@ class ResNetClassifier:
         if resume:
             best_acc, start_epoch = self.load_checkpoint()
         
-        for epoch in range(start_epoch, start_epoch + epochs):
-            print('\nEpoch: %d' % (epoch,))
+        progress = tqdm(range(start_epoch, start_epoch + epochs), total=epochs, initial=start_epoch, ncols=120, position=0)
+        progress.set_description('Epoch')
+        for epoch in progress:
             loss = self.__train(loaders['train'])
-            self.logger.add_scalar('training loss', loss)
+            self.logger.add_scalar('training loss', loss, epoch)
             val_acc = self.__validate(loaders['val'])
-            self.logger.add_scalar('validation accuracy', val_acc)
+            self.logger.add_scalar('validation accuracy', val_acc, epoch)
             self.schedular.step()
-            print('lr: %f' % (self.schedular.get_last_lr()[0]))
+            lr = self.schedular.get_last_lr()[0]
+            self.logger.add_scalar('learning rate', lr, epoch)
             
             if val_acc > best_acc:
-                print('saving checkpoint...')
+                tqdm.write('saving checkpoint...')
                 best_acc = val_acc
                 state = {
                     'net': self.net.state_dict(),
@@ -66,68 +69,8 @@ class ResNetClassifier:
                     'epoch': epoch
                 }
                 self.save_checkpoint(state)
-
-
-    def _fit(self, loaders: Dict[str, DataLoader], epochs: int, resume: bool=False) -> None:
-        self.best_acc = 0.0
-        self.start_epoch = 0
-        if resume:
-            self.load_checkpoint()
-        
-        self.net.train()
-        device = self.device
-        
-        for epoch in range(self.start_epoch, self.start_epoch + epochs):
-            print('\nEpoch: %d' % (epoch,))
-            for phase in ['train', 'val']:
-                if phase == 'train':
-                    self.net.train()
-                else:
-                    self.net.eval()
-
-                running_loss = 0.0
-                correct = 0
-                total = 0
-
-                for batch_idx, (inputs, targets) in enumerate(loaders[phase]):
-                    inputs, targets = inputs.to(device), targets.to(device)
-                    self.optimizer.zero_grad()
-                    outputs: torch.Tensor = self.net(inputs)
-                    loss = self.criterion(outputs, targets)
-                    if phase == 'train':
-                        loss.backward()
-                        self.optimizer.step()
-                    
-                    running_loss += loss.item()
-                    _, predicted = outputs.max(1)
-                    total += targets.size(0)
-                    correct += predicted.eq(targets).sum().item()
-                    accuracy = 100.*correct/total
-
-                    progress_bar(batch_idx, len(loaders[phase]), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                         % (running_loss/(batch_idx+1), accuracy, correct, total))
-                
-                epoch_acc = 100.*correct / len(loaders[phase].dataset)
-                epoch_loss = running_loss / len(loaders[phase])
-
-                if phase == 'train':
-                    self.schedular.step()
-                    print('lr: %f' % (self.schedular.get_last_lr()[0]))
-                    self.logger.report_scalar('training loss', 'epochs', epoch_loss, epoch)
-                else:
-                    self.logger.report_scalar('validation accuracy', 'epochs', epoch_acc, epoch)
-                
-                if phase == 'val' and epoch_acc > self.best_acc:
-                    print('saving checkpoint...')
-                    state = {
-                        'net': self.net.state_dict(),
-                        'acc': epoch_acc,
-                        'epoch': epoch
-                    }
-                    torch.save(state, './checkpoint/model.pth')
-                    self.best_acc = epoch_acc
-        
-        return self
+            
+            progress.set_postfix({'loss': loss, 'acc': val_acc, 'lr': lr})
 
 
     def __train(self, loader: DataLoader) -> float:
@@ -135,7 +78,9 @@ class ResNetClassifier:
         running_loss = 0.0
         correct = 0
         total = 0
-        for batch_idx, (inputs, targets) in tqdm(enumerate(loader), total=len(loader)):
+        progress = tqdm(enumerate(loader), total=len(loader), leave=False, ncols=120, position=1)
+        progress.set_description('Train')
+        for batch_idx, (inputs, targets) in progress:
             inputs, targets = inputs.to(self.device), targets.to(self.device)
             self.optimizer.zero_grad()
             outputs = self.net(inputs)
@@ -148,6 +93,11 @@ class ResNetClassifier:
             correct += predicted.eq(targets).sum().item()
             accuracy = 100.*correct/total
 
+            progress.set_postfix({
+                'loss': (running_loss/(batch_idx+1)),
+                'acc': accuracy
+            })
+
             #progress_bar(batch_idx, len(loader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
             #             % (running_loss/(batch_idx+1), accuracy, correct, total))
 
@@ -159,7 +109,9 @@ class ResNetClassifier:
         self.net.eval()
         correct = 0
         total = 0
-        for batch_idx, (inputs, targets) in tqdm(enumerate(loader), total=len(loader)):
+        progress = tqdm(enumerate(loader), total=len(loader), leave=False, ncols=120, position=2)
+        progress.set_description('Val  ')
+        for batch_idx, (inputs, targets) in progress:
             inputs, targets = inputs.to(self.device), targets.to(self.device)
             with torch.no_grad():
                 outputs: torch.Tensor = self.net(inputs)
@@ -168,6 +120,7 @@ class ResNetClassifier:
             correct += predicted.eq(targets).sum().item()
             accuracy = 100.*correct/total
 
+            progress.set_postfix({'acc': accuracy})
             #progress_bar(batch_idx, len(loaders[phase]), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
             #             % (running_loss/(batch_idx+1), accuracy, correct, total))
                 

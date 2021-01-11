@@ -25,6 +25,7 @@ if __name__ == '__main__':
         task_name='image_classification_cifar10',
         output_uri='./snapshot'
     )
+    
     conf = {
         'epochs': args.epochs,
         'batch_size': args.batch_size,
@@ -38,8 +39,7 @@ if __name__ == '__main__':
     loaders = create_loaders(conf)
     
     is_train = args.train
-    logger = task.get_logger()
-    estimator = ResNetClassifier(conf, logger, is_finetune=False)
+    estimator = ResNetClassifier(conf, is_finetune=False)
     if is_train:
         estimator.fit(loaders, conf['epochs'], resume=args.resume)
         estimator.save(NET_PATH)

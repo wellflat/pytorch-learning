@@ -15,6 +15,7 @@ awscli = "*"
 scikit-learn = "*"
 allegroai = "*"
 pathlib2 = "*"
+tqdm = "*"
 
 [dev-packages]
 
