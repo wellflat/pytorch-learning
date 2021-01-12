@@ -12,6 +12,9 @@ from torchvision.ops.boxes import box_iou
 from tqdm import tqdm
 
 
+Dataset = List[Dict[str, torch.Tensor]]
+
+
 class FasterRCNNDetector:
     net: FasterRCNN
     optimizer: optim.SGD
@@ -106,7 +109,8 @@ class FasterRCNNDetector:
         total = 0
         correct = 0
         i = 0
-        #for batch_idx, (inputs, targets, image_ids) in tqdm(enumerate(loader), total=len(loader)):
+        progress = tqdm(enumerate(loader), total=len(loader), leave=False, ncols=120, position=2)
+        progress.set_description('Val  ')
         for batch_idx, (inputs, targets, image_ids) in enumerate(loader):
             inputs = list(input.to(self.device) for input in inputs)
             targets = [{k: v.to(self.device) for k, v in t.items()} for t in targets]
@@ -122,19 +126,37 @@ class FasterRCNNDetector:
                  {'boxes': ... ]
                  '''
             
-            for output, target in zip(outputs, targets):
-                if len(output['boxes']) > 0:
-                    print(len(output['boxes']), len(target['boxes']))
-                    print(output['scores'], output['labels'])
-                    iou = box_iou(output['boxes'], target['boxes'])
-                    print(iou)
-            
-            if i > 5:
+            self.__get_metrics(outputs, targets)
+            if i > 20:
                 import sys
                 sys.exit(0)
             i += 1
         
         return 1.0
+    
+
+    def __get_metrics(self, outputs: Dataset, targets: Dataset) -> float:
+        ## one label/bbox per validation image
+        from sklearn.metrics import average_precision_score, confusion_matrix
+        for output, target in zip(outputs, targets):
+            if len(target['labels']) > 1:
+                continue
+            if len(output['boxes']) == 0:
+                continue
+
+            true_label = target['labels'][0]
+            true_boxes = output['boxes'][output['labels'] == true_label]
+            true_scores = output['scores'][output['labels'] == true_label]
+            
+            #print(len(true_boxes), len(target['boxes']))
+            #print(output['scores'], output['labels'])
+            iou = box_iou(true_boxes, target['boxes'])
+            #print(len(iou), len(iou[iou>0.5]))
+            y_true = iou > 0.75
+            print(y_true.flatten())
+            print(true_scores)
+            ap = average_precision_score(y_true.flatten(), true_scores)
+            print(ap)
     
 
     def test(self, loader: DataLoader, categories: List[str]) -> None:

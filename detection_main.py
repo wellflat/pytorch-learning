@@ -50,7 +50,7 @@ if __name__ == '__main__':
     estimator = FasterRCNNDetector(conf)
     #sys.exit(-1)
     if is_train:
-        estimator.load_checkpoint(NET_PATH)
+        estimator.load(NET_PATH)
         estimator.fit(loaders, conf['epochs'], resume=args.resume)
         #estimator.save(NET_PATH)
     else:
