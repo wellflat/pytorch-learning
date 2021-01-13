@@ -54,8 +54,8 @@ class FasterRCNNDetector:
         )
         progress.set_description('Epoch')
         for epoch in progress:
-            #loss = self.__train(loaders['train'])
-            #self.logger.add_scalar('training loss', loss, epoch)
+            loss = self.__train(loaders['train'])
+            self.logger.add_scalar('training loss', loss, epoch)
             ap = self.__validate(loaders['val'])
             self.logger.add_scalar('average precision', ap, epoch)
             self.schedular.step()
@@ -99,7 +99,7 @@ class FasterRCNNDetector:
         return epoch_loss
         
 
-    def __validate(self, loader: DataLoader) -> float:
+    def __validate(self, loader: DataLoader, iou_threshold: float=0.5) -> float:
         self.net.eval()
         correct = []
         scores = []
@@ -121,7 +121,7 @@ class FasterRCNNDetector:
                  {'boxes': ... ]
                  '''
             
-            pred_true, true_scores = self.__get_metrics(outputs, targets)
+            pred_true, true_scores = self.__get_metrics(outputs, targets, iou_threshold)
             #print(pred_true, true_scores)
             correct.append(pred_true)
             scores.append(true_scores)
@@ -134,7 +134,7 @@ class FasterRCNNDetector:
         return ap
     
 
-    def __get_metrics(self, outputs: Dataset, targets: Dataset, iou_threshold: float=0.75) -> Tuple[torch.Tensor, torch.Tensor]:
+    def __get_metrics(self, outputs: Dataset, targets: Dataset, iou_threshold: float) -> Tuple[torch.Tensor, torch.Tensor]:
         ## one label/bbox per validation image (targets)
         correct = []
         scores = []
@@ -222,6 +222,7 @@ class FasterRCNNDetector:
         filepath = f'./checkpoint/{self.__class__.__name__}_model.pth'
         checkpoint = torch.load(filepath, map_location=self.device)
         self.net.load_state_dict(checkpoint['net'])
+        #return (checkpoint['epoch'], checkpoint['ap'])
         return (checkpoint['epoch'], checkpoint['acc'])
 
 
