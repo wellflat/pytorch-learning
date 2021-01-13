@@ -9,6 +9,7 @@ import torchvision
 from torchvision.models.detection import fasterrcnn_resnet50_fpn, FasterRCNN
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.ops.boxes import box_iou
+from sklearn.metrics import average_precision_score
 from tqdm import tqdm
 
 
@@ -42,40 +43,37 @@ class FasterRCNNDetector:
 
 
     def fit(self, loaders: Dict[str, DataLoader], epochs: int, resume: bool=False) -> None:
-        best_acc = 0.0
+        best_ap = 0.0
         start_epoch = 0
         if resume:
-            best_acc, start_epoch = self.load_checkpoint()
+            best_ap, start_epoch = self.load_checkpoint()
         
-        val_loss = self.__validate(loaders['val'])
-        return
-
         progress = tqdm(
             range(start_epoch, start_epoch + epochs),
             total=epochs, initial=start_epoch, ncols=120, position=0
         )
         progress.set_description('Epoch')
         for epoch in progress:
-            loss = self.__train(loaders['train'])
-            self.logger.add_scalar('training loss', loss, epoch)
-            val_acc = self.__validate(loaders['val'])
-            self.logger.add_scalar('validation accuracy', val_acc, epoch)
+            #loss = self.__train(loaders['train'])
+            #self.logger.add_scalar('training loss', loss, epoch)
+            ap = self.__validate(loaders['val'])
+            self.logger.add_scalar('average precision', ap, epoch)
             self.schedular.step()
             lr = self.schedular.get_last_lr()[0]
             self.logger.add_scalar('learning rate', lr, epoch)
 
-            if val_acc > best_acc:
+            if ap > best_ap:
                 tqdm.write('saving checkpoint...')
-                best_acc = val_acc
+                best_ap = ap
                 state = {
                     'net': self.net.state_dict(),
-                    'acc': best_acc,
+                    'ap': ap,
                     'epoch': epoch
                 }
                 self.save_checkpoint(state)
 
-            progress.set_postfix({'loss': loss, 'acc': val_acc, 'lr': lr})
-              
+            progress.set_postfix({'loss': loss, 'ap': ap, 'lr': lr})
+            
 
     def __train(self, loader: DataLoader) -> float:
         self.net.train()
@@ -95,9 +93,7 @@ class FasterRCNNDetector:
             running_loss += loss.item()
             #progress_bar(batch_idx, len(loader), 'Loss: %.5f' % (loss.item(),))
 
-            progress.set_postfix({
-                'loss': (running_loss/(batch_idx+1))
-            })
+            progress.set_postfix({'loss': (running_loss/(batch_idx+1))})
         
         epoch_loss = running_loss / len(loader)
         return epoch_loss
@@ -105,13 +101,12 @@ class FasterRCNNDetector:
 
     def __validate(self, loader: DataLoader) -> float:
         self.net.eval()
-        running_loss = 0.0
-        total = 0
-        correct = 0
-        i = 0
+        correct = []
+        scores = []
+        ap = 0.0
         progress = tqdm(enumerate(loader), total=len(loader), leave=False, ncols=120, position=2)
         progress.set_description('Val  ')
-        for batch_idx, (inputs, targets, image_ids) in enumerate(loader):
+        for batch_idx, (inputs, targets, image_ids) in progress:
             inputs = list(input.to(self.device) for input in inputs)
             targets = [{k: v.to(self.device) for k, v in t.items()} for t in targets]
             with torch.no_grad():
@@ -126,18 +121,23 @@ class FasterRCNNDetector:
                  {'boxes': ... ]
                  '''
             
-            self.__get_metrics(outputs, targets)
-            if i > 20:
-                import sys
-                sys.exit(0)
-            i += 1
+            pred_true, true_scores = self.__get_metrics(outputs, targets)
+            #print(pred_true, true_scores)
+            correct.append(pred_true)
+            scores.append(true_scores)
+            y_true = torch.cat(correct, dim=0)
+            y_score = torch.cat(scores, dim=0)
+            ap: float = average_precision_score(y_true, y_score)
+
+            progress.set_postfix({'ap': ap})
         
-        return 1.0
+        return ap
     
 
-    def __get_metrics(self, outputs: Dataset, targets: Dataset) -> float:
-        ## one label/bbox per validation image
-        from sklearn.metrics import average_precision_score, confusion_matrix
+    def __get_metrics(self, outputs: Dataset, targets: Dataset, iou_threshold: float=0.75) -> Tuple[torch.Tensor, torch.Tensor]:
+        ## one label/bbox per validation image (targets)
+        correct = []
+        scores = []
         for output, target in zip(outputs, targets):
             if len(target['labels']) > 1:
                 continue
@@ -147,16 +147,12 @@ class FasterRCNNDetector:
             true_label = target['labels'][0]
             true_boxes = output['boxes'][output['labels'] == true_label]
             true_scores = output['scores'][output['labels'] == true_label]
-            
-            #print(len(true_boxes), len(target['boxes']))
-            #print(output['scores'], output['labels'])
             iou = box_iou(true_boxes, target['boxes'])
-            #print(len(iou), len(iou[iou>0.5]))
-            y_true = iou > 0.75
-            print(y_true.flatten())
-            print(true_scores)
-            ap = average_precision_score(y_true.flatten(), true_scores)
-            print(ap)
+            pred_true = iou > iou_threshold
+            correct.append(pred_true.flatten())
+            scores.append(true_scores)
+            
+        return (torch.cat(correct, dim=0), torch.cat(scores, dim=0))
     
 
     def test(self, loader: DataLoader, categories: List[str]) -> None:
