@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os
 from typing import Dict, Tuple
 import pickle
 import numpy as np
@@ -86,13 +87,25 @@ def get_allegro_dataset(dataset_name:str, version_name: str, query: str) -> pd.D
     return df
 
 
-def create_loaders(dataset_name: str, version_name: str, query: str) -> Dict[str, DataLoader]:
-    df = get_allegro_dataset(dataset_name, version_name, query)
-    dataset = DetectionDataset(df)
-    n_train = int(len(dataset) * 0.8)
-    n_val = len(dataset) - n_train
-    generator = torch.manual_seed(2021)
-    train, val = random_split(dataset, [n_train, n_val], generator)
+def create_loaders(dataset_name: str, version_name: str, query: str, use_cache: bool=True) -> Dict[str, DataLoader]:
+    cache_dir = "./data/allegro"
+    train_filepath = f'{cache_dir}/{dataset_name}/train.pkl'
+    val_filepath = f'{cache_dir}/{dataset_name}/val.pkl'
+    os.makedirs(f'{cache_dir}/{dataset_name}', exist_ok=True)
+    if use_cache:
+        train = load(train_filepath)
+        val = load(val_filepath)
+    else:
+        print(f'get allegro dataset: {dataset_name}')
+        df = get_allegro_dataset(dataset_name, version_name, query)
+        dataset = DetectionDataset(df)
+        n_train = int(len(dataset) * 0.8)
+        n_val = len(dataset) - n_train
+        generator = torch.Generator().manual_seed(2021)
+        train, val = random_split(dataset, [n_train, n_val], generator)
+        save(train, train_filepath)
+        save(val, val_filepath)
+        print('saving dataset complete.')
 
     def collate_fn(batch):
         return tuple(zip(*batch))
@@ -119,14 +132,26 @@ def create_loaders(dataset_name: str, version_name: str, query: str) -> Dict[str
         'val': valloader
     }
 
+
+def save(dataset: DetectionDataset, filepath: str):
+    with open(filepath, 'wb') as f:
+        pickle.dump(dataset, f)
+
+
+def load(filepath: str) -> DetectionDataset:
+    with open(filepath, 'rb') as f:
+        data = pickle.load(f)
+    return data
+
+
+
 if __name__ == '__main__':
     dataset_name = 'Data registration example2'
     #version_name = 'NSFW,Jan'
     version_name = 'Gun,Jan'
     query = 'SM'
-    loaders = create_loaders(dataset_name, version_name, query)
-    print(loaders['train'])
-
+    loaders = create_loaders(dataset_name, version_name, query, True)
+    print(len(loaders['train']), len(loaders['val']))
     for i, (inputs, targets, image_ids) in enumerate(loaders['train']):
         print(image_ids)
     
