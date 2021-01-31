@@ -68,7 +68,11 @@ def upload_data_to_platform(dataset_name,  # type: str
     :param version_name: Version name if the dataset.
     :param buckets: List of full paths to the buckets contain the data.
     """
-    Task.init(project_name="Data registration", task_name="Register buckets")
+    Task.init(
+        project_name="Data registration",
+        task_name="Register buckets",
+        task_type=Task.TaskTypes.data_processing
+    )
     # Get the version we want to update
     try:
         version = DatasetVersion.get_version(dataset_name=dataset_name, version_name=version_name)
