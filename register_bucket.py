@@ -14,11 +14,10 @@ Requirements:
 How to use the script:
 ~/upload_data_for_annotations.py -d "<dataset name>" -v "<version name>" -b <bucket 1> ... <bucket N>
 """
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from typing import List
 from pathlib2 import Path
 from allegroai import DatasetVersion, SingleFrame, Task
-from clearml.storage.helper import StorageHelper
 import boto3
 
 APPROVED_SUFFIX = [".jpg", ".jpeg", ".png", ".gif", ".tif", ".tiff"]
@@ -72,8 +71,6 @@ def update_frames_from_bucket(buckets: List[str], annotated: bool, session: boto
     s3_client = session.client('s3')
     frames_to_upload = []
     for bucket_name in buckets:
-        #helper = StorageHelper.get(f"s3://{bucket_name}")
-        #s3_client = helper._container.resource.meta.client  # pylint: disable=protected-access
         bucket_root_dir, _, bucket_prefix = bucket_name.partition("/")
         objects = s3_client.list_objects_v2(Bucket=bucket_root_dir, Prefix=bucket_prefix)
         location = s3_client.get_bucket_location(Bucket=bucket_root_dir)['LocationConstraint']
@@ -84,8 +81,9 @@ def update_frames_from_bucket(buckets: List[str], annotated: bool, session: boto
             size = entry.get('Size')
             hash = entry.get('ETag')
             timestamp = entry.get('LastModified').timestamp()
-            source_path = f"s3://{bucket_root_dir}/{file_key}"
+            #source_path = f"s3://{bucket_root_dir}/{file_key}"
             #source_path = f"https://{bucket_root_dir}.s3-{location}.amazonaws.com/{file_key}"
+            source_path = f"https://rest-term.com/tmp/{bucket_root_dir}/{file_key}"
             print(source_path)
             if file_key and not source_path.endswith("/") and Path(file_key).suffix in APPROVED_SUFFIX:
                 source_metadata = get_metadata(s3_client=s3_client, bucket=bucket_root_dir, key=file_key)
@@ -103,7 +101,7 @@ def update_frames_from_bucket(buckets: List[str], annotated: bool, session: boto
     return frames_to_upload
 
 
-def upload_data_to_platform(dataset_name: str, version_name: str, buckets: List[str], annotated: bool):
+def upload_data_to_platform(dataset_name: str, version_name: str, annotated: bool, frames: List[SingleFrame]):
     """
     :param dataset_name: The basic DataSet name.
     :param version_name: Version name if the dataset.
@@ -122,11 +120,12 @@ def upload_data_to_platform(dataset_name: str, version_name: str, buckets: List[
         version = DatasetVersion.create_version(dataset_name=dataset_name, version_name=version_name)
 
     # Take the data from the bucket and upload it
-    buckets_frames = update_frames_from_bucket(buckets=buckets, annotated=annotated)
-    version.add_frames(buckets_frames)    
+    #buckets_frames = update_frames_from_bucket(buckets=buckets, annotated=annotated)
+    version.add_frames(frames)
+    print(f'{len(frames)} images registration completed')
 
 
-def parse_arguments() -> ArgumentParser:
+def parse_arguments() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument('-d', '--dataset-name', help='The name of the dataset', required=True)
     parser.add_argument('-v', '--version-name', help='The name for the version', required=True)
@@ -135,29 +134,17 @@ def parse_arguments() -> ArgumentParser:
                         required=True)
     parser.add_argument('--annotated', type=bool, default=False,
                         help='If True, assumes images are in subfolders. Subfolders considered as labels')
-    return parser
+    return parser.parse_args()
 
 
 if __name__ == '__main__':
+    args = parse_arguments()
     session = assume_role('042830681561', 'S3-ReadOnly')
-    frames = update_frames_from_bucket(['allegro-dataset'], True, session)
+    frames = update_frames_from_bucket(args.buckets, args.annotated, session)
     #print(frames)
-    #parser = parse_arguments()
-    #upload_data_to_platform(**vars(parser.parse_args()))
-    """
-    access_key = 'ASIAQT6HIKXMQ354HG5Y'
-    secret_key = 'agPxDvBJja6nsAxpsALO6EcSQhiv/jkd0c6Lewyz'
-    token = 'FwoGZXIvYXdzEAAaDG0P/iEXA69EkY07IyKGASQf8c6CsQr4UWbJefjHwN3k2qhuJnqZ/aGMTiuSZyl0XLygte9cua8ysTy68IvLB/cPIKPqwsUCfsd+FEBJ3Wa5/HmH/Z4hDOCgcx5BAbq6xYMd/osvjkctadsRDl7c+7dc0+xW91YN3pJdnl6Ck5s4f4OqpzxY0xV/5P+hMBexyaFCb1GpKL7L5YAGMig6WKywSYeLOwxIBToW2exftgDYbtaxnedtRlu7VUm5Zm4jV9jsBjvz'
-    s3 = boto3.client(
-        's3',
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key,
-        aws_session_token=token,
-        region_name='ap-northeast-1'
+    upload_data_to_platform(
+        dataset_name=args.dataset_name,
+        version_name=args.version_name,
+        annotated=args.annotated,
+        frames=frames
     )
-    #print(s3.list_buckets())
-    objs = s3.list_objects_v2(Bucket='allegro-dataset', Prefix='modelgun_good/')
-    #print(objs)
-    bucket_objects = objs.get("Contents", [])
-    print(bucket_objects)
-    """
