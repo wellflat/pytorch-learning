@@ -1,5 +1,6 @@
 
 from typing import Any, Dict, Tuple
+import os
 import torch
 from torch import nn, optim
 from torch.optim.lr_scheduler import StepLR
@@ -155,6 +156,7 @@ class Classifier:
 
 
     def load_checkpoint(self) -> Tuple[int, float]:
+        os.makedirs('./checkpoint', exist_ok=True)
         filepath = f'./checkpoint/{self.__class__.__name__}_model.pth'
         checkpoint = torch.load(filepath, map_location=self.device)
         self.net.load_state_dict(checkpoint['net'])
