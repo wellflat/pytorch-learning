@@ -156,7 +156,6 @@ class Classifier:
 
 
     def load_checkpoint(self) -> Tuple[int, float]:
-        os.makedirs('./checkpoint', exist_ok=True)
         filepath = f'./checkpoint/{self.__class__.__name__}_model.pth'
         checkpoint = torch.load(filepath, map_location=self.device)
         self.net.load_state_dict(checkpoint['net'])
@@ -164,6 +163,7 @@ class Classifier:
 
 
     def save_checkpoint(self, state: Dict[str, Any]) -> None:
+        os.makedirs('./checkpoint', exist_ok=True)
         filepath = f'./checkpoint/{self.__class__.__name__}_model.pth'
         torch.save(state, filepath)
 
