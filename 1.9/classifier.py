@@ -5,7 +5,7 @@ import torch
 from torch import nn, optim
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
-from tqdm.notebook import tqdm
+from tqdm.autonotebook import tqdm
 from alexnet import AlexNet
 
 
