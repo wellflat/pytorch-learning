@@ -8,6 +8,7 @@ torch = "*"
 numpy = "*"
 torchvision = "*"
 tqdm = "*"
+tensorboard = "*"
 
 [dev-packages]
 

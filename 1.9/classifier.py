@@ -5,7 +5,8 @@ import torch
 from torch import nn, optim
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
-from tqdm.autonotebook import tqdm, trange
+from torch.utils.tensorboard import SummaryWriter
+from tqdm.autonotebook import tqdm
 from alexnet import AlexNet
 
 
@@ -14,7 +15,7 @@ class Classifier:
     criterion: nn.CrossEntropyLoss
     optimizer: optim.SGD
     scheduler: optim.lr_scheduler.StepLR
-
+    logger: SummaryWriter
 
     def __init__(self, conf: Dict[str, Any]):
         super().__init__()
@@ -33,7 +34,7 @@ class Classifier:
         self.net.to(self.device)
         self.best_acc = 0.0
         self.start_epoch = 0
-                
+        self.logger = SummaryWriter()
     
     def fit(self, loaders: Dict[str, DataLoader], epochs: int, resume: bool=False) -> None:
         best_acc = 0.0
@@ -48,12 +49,12 @@ class Classifier:
         progress.set_description('Epoch')
         for epoch in progress:
             loss = self.__train(loaders['train'])
-            #self.logger.add_scalar('training loss', loss, epoch)
+            self.logger.add_scalar('training loss', loss, epoch)
             val_acc = self.__validate(loaders['val'])
-            #self.logger.add_scalar('validation accuracy', val_acc, epoch)
+            self.logger.add_scalar('validation accuracy', val_acc, epoch)
             self.schedular.step()
             lr = self.schedular.get_last_lr()[0]
-            #self.logger.add_scalar('learning rate', lr, epoch)
+            self.logger.add_scalar('learning rate', lr, epoch)
             
             if val_acc > best_acc:
                 tqdm.write('saving checkpoint...')
@@ -105,7 +106,7 @@ class Classifier:
         progress.set_description('Val  ')
         for batch_idx, (inputs, targets) in progress:
             inputs, targets = inputs.to(self.device), targets.to(self.device)
-            with torch.no_grad():
+            with torch.inference_mode():
                 outputs: torch.Tensor = self.net(inputs)
             _, predicted = outputs.max(1)
             total += targets.size(0)
@@ -128,7 +129,7 @@ class Classifier:
         progress.set_description('Test')
         for batch_idx, (inputs, targets) in progress:
             inputs, targets = inputs.to(device), targets.to(device)
-            with torch.no_grad():
+            with torch.inference_mode():
                 outputs: torch.Tensor = self.net(inputs)
             _, predicted = outputs.max(1)
             total += targets.size(0)
