@@ -5,7 +5,7 @@ import torch
 from torch import nn, optim
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
-from tqdm.autonotebook import tqdm
+from tqdm.autonotebook import tqdm, trange
 from alexnet import AlexNet
 
 
@@ -43,7 +43,7 @@ class Classifier:
         
         progress = tqdm(
             range(start_epoch, start_epoch + epochs),
-            total=epochs, initial=start_epoch, ncols=120, position=0
+            total=epochs, initial=start_epoch
         )
         progress.set_description('Epoch')
         for epoch in progress:
@@ -73,7 +73,7 @@ class Classifier:
         running_loss = 0.0
         correct = 0
         total = 0
-        progress = tqdm(enumerate(loader), total=len(loader), leave=False, ncols=120, position=1)
+        progress = tqdm(enumerate(loader), total=len(loader), leave=False)
         progress.set_description('Train')
         for batch_idx, (inputs, targets) in progress:
             inputs, targets = inputs.to(self.device), targets.to(self.device)
@@ -101,7 +101,7 @@ class Classifier:
         self.net.eval()
         correct = 0
         total = 0
-        progress = tqdm(enumerate(loader), total=len(loader), leave=False, ncols=120, position=2)
+        progress = tqdm(enumerate(loader), total=len(loader), leave=False)
         progress.set_description('Val  ')
         for batch_idx, (inputs, targets) in progress:
             inputs, targets = inputs.to(self.device), targets.to(self.device)
@@ -124,7 +124,7 @@ class Classifier:
         correct = 0
         total = 0
 
-        progress = tqdm(enumerate(loader), total=len(loader), ncols=120)
+        progress = tqdm(enumerate(loader), total=len(loader))
         progress.set_description('Test')
         for batch_idx, (inputs, targets) in progress:
             inputs, targets = inputs.to(device), targets.to(device)
