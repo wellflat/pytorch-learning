@@ -38,3 +38,4 @@ class AlexNet(nn.Module):
         x = x.view(x.size(0), 256 * 2 * 2)
         x = self.classifier(x)
         return x
+
