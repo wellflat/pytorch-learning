@@ -3,9 +3,13 @@ from typing import Any, Dict, Tuple
 import os
 import torch
 from torch import nn, optim
+from torch.nn.functional import softmax
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from torchvision import transforms
+from torchvision.transforms.transforms import Compose
+from PIL.Image import Image as PILImage
 from tqdm.autonotebook import tqdm
 from alexnet import AlexNet
 
@@ -15,13 +19,14 @@ class Classifier:
     criterion: nn.CrossEntropyLoss
     optimizer: optim.SGD
     scheduler: optim.lr_scheduler.StepLR
+    transformer: Compose
     logger: SummaryWriter
 
     def __init__(self, conf: Dict[str, Any]):
         super().__init__()
         self.net = AlexNet(conf.get('num_classes', 10))
         self.criterion = nn.CrossEntropyLoss()
-
+        self.__build_transformer()
         self.optimizer = optim.SGD(
             self.net.parameters(),
             lr=conf.get('base_lr', 0.01),
@@ -35,6 +40,7 @@ class Classifier:
         self.best_acc = 0.0
         self.start_epoch = 0
         self.logger = SummaryWriter()
+        
     
     def fit(self, loaders: Dict[str, DataLoader], epochs: int, resume: bool=False) -> None:
         best_acc = 0.0
@@ -142,10 +148,22 @@ class Classifier:
         print(f'test accuracy: {test_accuracy}')
 
 
-    def predict(self, x: torch.Tensor) -> torch.Tensor:
-        self.net.eval()
-        x.to(self.device)
-        return self.net(x)
+    def predict(self, x: PILImage) -> torch.Tensor:
+        #self.net.eval()
+        #x.to(self.device)
+        #return self.net(x)
+
+        x = self.transformer(x)
+        x = x.unsqueeze(0)  # type: ignore
+        with torch.no_grad():
+            outputs = self.net(x)
+
+        _, preds = torch.max(outputs, 1)  # type: ignore
+        label = int(preds)
+        output = softmax(input=outputs, dim=1)[:, 1]
+        score = float(output.cpu()) if label == 1 else 1 - float(output.cpu())
+        confidence = float('{:.3f}'.format(score))
+        return (label, confidence)
 
 
     def load(self, path: str) -> None:
@@ -167,6 +185,14 @@ class Classifier:
         os.makedirs('./checkpoint', exist_ok=True)
         filepath = f'./checkpoint/{self.__class__.__name__}_model.pth'
         torch.save(state, filepath)
+
+    def __build_transformer(self) -> None:
+        #image_size = self.config['image_size']
+        self.transformer = transforms.Compose([
+            #transforms.Resize((image_size, image_size)),
+            transforms.ToTensor(),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+        ])
 
 
 

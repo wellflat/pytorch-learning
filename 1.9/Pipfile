@@ -9,6 +9,7 @@ numpy = "*"
 torchvision = "*"
 tqdm = "*"
 tensorboard = "*"
+pillow = "*"
 
 [dev-packages]
 
