@@ -1,6 +1,12 @@
-checkpoint/
 snapshot/
 data/
-tensorboard_logs/
+.venv/
+__pycache__/
+runs/
+checkpoints/
+tb_logs/
 *.pth
+*.ckpt
+kaggle.json
+Pipfile.lock
 clearml.conf
