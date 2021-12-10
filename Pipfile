@@ -4,18 +4,9 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-torch = "*"
-torchvision = "*"
-clearml = "*"
-tensorboard = "*"
-pandas = "*"
-matplotlib = "*"
-tensorflow = "*"
-awscli = "*"
-scikit-learn = "*"
-allegroai = "*"
-pathlib2 = "*"
-tqdm = "*"
+torch = {file = "https://download.pytorch.org/whl/cpu/torch-1.10.0%2Bcpu-cp38-cp38-linux_x86_64.whl"}
+torchvision = {file = "https://download.pytorch.org/whl/cpu/torchvision-0.11.1%2Bcpu-cp38-cp38-linux_x86_64.whl"}
+torchx = {extras = ["dev"], version = "*"}
 
 [dev-packages]
 
