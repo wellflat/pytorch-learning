@@ -1,12 +1,13 @@
-snapshot/
-data/
 .venv/
 __pycache__/
+data/
 runs/
 checkpoints/
 tb_logs/
+Pipfile.lock
 *.pth
 *.ckpt
 kaggle.json
-Pipfile.lock
 clearml.conf
+*.jpg
+*.png
