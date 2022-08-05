@@ -6,7 +6,7 @@ import sys
 import pandas as pd
 import torch
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import DeviceStatsMonitor, LearningRateMonitor, ModelCheckpoint
+from pytorch_lightning.callbacks import DeviceStatsMonitor, LearningRateMonitor, ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import TensorBoardLogger
 from loader import MNISTDataModule
 from classifier import Classifier
@@ -37,9 +37,14 @@ if __name__ == '__main__':
         ModelCheckpoint(
             dirpath='./checkpoints',
             filename='mnist-lenet:{epoch:02d}-{val_acc:.3f}',
-            monitor='val_acc',
+            monitor='Accracy',
             mode='max',
             save_top_k=1
+        ),
+        EarlyStopping(
+            monitor='Accuracy',
+            mode='max',
+            patience=10
         ),
         LearningRateMonitor('epoch'),
         DeviceStatsMonitor()

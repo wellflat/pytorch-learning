@@ -3,20 +3,25 @@ import torch
 from torch import nn, optim, Tensor
 from torch.optim.lr_scheduler import StepLR
 import pytorch_lightning as pl
-from resnet import MNISTResNet
-from config import TrainingConfig
-
+import torchmetrics
 
 class Classifier(pl.LightningModule):
     net: nn.Module
     criterion: nn.CrossEntropyLoss
     config: TrainingConfig
 
-    def __init__(self, config:TrainingConfig):
+    def __init__(self, config: TrainingConfig):
         super().__init__()
         self.config = config
         self.net = MNISTResNet()
         self.criterion = nn.CrossEntropyLoss()
+        self.save_hyperparameters()
+        self.metrics = torchmetrics.MetricCollection([
+            torchmetrics.Accuracy(),
+            torchmetrics.Precision(),
+            torchmetrics.Recall(),
+            torchmetrics.F1Score()
+        ])
         self.save_hyperparameters()
 
     def forward(self, x:Tensor) -> Tensor:
@@ -37,16 +42,16 @@ class Classifier(pl.LightningModule):
         avg_loss = torch.stack([x['loss'] for x in outputs]).mean()
         self.log('train_loss', avg_loss, prog_bar=True)
     
-    def validation_step(self, batch:Tuple[Tensor, Tensor] , batch_idx:int) -> Dict[str, float]:
+    def validation_step(self, batch:Tuple[Tensor, Tensor] , batch_idx:int) -> None:
         inputs, targets = batch
         logits: Tensor = self.net(inputs)
         preds = logits.argmax(1)
-        accuracy = sum(preds == targets) / len(targets)
-        return {'val_acc': accuracy}
+        #accuracy = sum(preds == targets) / len(targets)
+        self.metrics(preds, targets)
+        self.log_dict(self.metrics, prog_bar=True, on_step=False, on_epoch=True)
     
     def validation_epoch_end(self, outputs:Dict[str, Tensor]) -> None:
-        avg_acc = torch.stack([x['val_acc'] for x in outputs]).mean()
-        self.log('val_acc', avg_acc, prog_bar=True)
+        return
 
     def test_step(self, batch:Tensor, batch_idx:int) -> Tensor:
         logits: torch.Tensor = self.net(batch)
