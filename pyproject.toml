@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "pytorch-samples"
+version = "0.1.0"
+description = ""
+authors = ["wellflat <wellflat@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+torch = "^1.12.1"
+torchvision = "^0.13.1"
+pytorch-lightning = "^1.7.0"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -37,7 +37,7 @@ if __name__ == '__main__':
         ModelCheckpoint(
             dirpath='./checkpoints',
             filename='mnist-lenet:{epoch:02d}-{val_acc:.3f}',
-            monitor='Accracy',
+            monitor='Accuracy',
             mode='max',
             save_top_k=1
         ),
