@@ -4,6 +4,7 @@ data/
 runs/
 checkpoints/
 tb_logs/
+cache/
 Pipfile.lock
 *.pth
 *.ckpt
