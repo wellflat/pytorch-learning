@@ -3,12 +3,20 @@ name = "pytorch-samples"
 version = "0.1.0"
 description = ""
 authors = ["wellflat <wellflat@gmail.com>"]
+license = "MIT"
+packages = [
+    {include="lightning", from="."}
+]
 
 [tool.poetry.dependencies]
 python = "^3.9"
 torch = "^1.12.1"
 torchvision = "^0.13.1"
 pytorch-lightning = "^1.7.0"
+timm = "^0.6.7"
+effdet = "0.2.4"
+pandas = "^1.4.3"
+albumentations = "^1.2.1"
 
 [tool.poetry.dev-dependencies]
 

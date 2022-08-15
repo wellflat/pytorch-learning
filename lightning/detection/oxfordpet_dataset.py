@@ -1,5 +1,3 @@
-
-
 from typing import Dict, Tuple
 from glob import glob
 import pickle
@@ -7,10 +5,11 @@ import numpy as np
 import pandas as pd
 import xml.etree.ElementTree as ET
 import torch
-from torch.utils.data import DataLoader, Dataset, random_split
-from torchvision import transforms
+from torch.utils.data import Dataset
 from PIL import Image
-
+import albumentations as A
+from albumentations.pytorch.transforms import ToTensorV2
+from plot import display_image
 
 class xml2list(object):
     
@@ -70,8 +69,8 @@ def parse_xmls(xml_path: str='./data/oxford/annotations/xmls/*.xml') -> pd.DataF
         for bbox in bboxs:
             tmp = pd.Series(bbox, index=["width", "height", "xmin", "ymin", "xmax", "ymax", "class"])
             tmp["image_id"] = image_id
-            #df = df.append(tmp, ignore_index=True)
             df = pd.concat([df, pd.DataFrame([tmp])], ignore_index=True)
+            #df = df.append(tmp, ignore_index=True)
 
     df = df.sort_values(by="image_id", ascending=True)
     df['class'] = df['class'] + 1
@@ -81,100 +80,93 @@ def parse_xmls(xml_path: str='./data/oxford/annotations/xmls/*.xml') -> pd.DataF
 
 
 class DetectionDataset(Dataset):
-    
+    image_ids: np.ndarray
+    df: pd.DataFrame
+    image_dir: str
+    transforms: A.Compose
+
     def __init__(self, df: pd.DataFrame, image_dir: str):
-        
         super().__init__()
-        
         self.image_ids = df["image_id"].unique()
         self.df = df
         self.image_dir = image_dir
+        self.transforms = A.Compose([
+            A.Resize(height=512, width=512, p=1),
+            A.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+            ToTensorV2(p=1),
+        ],
+        p=1.0,
+        bbox_params=A.BboxParams(
+            format="pascal_voc", min_area=0, min_visibility=0, label_fields=["labels"]
+        ))
         
     def __getitem__(self, index) -> Tuple[torch.Tensor, Dict, str]:
-
-        transform = transforms.Compose([transforms.ToTensor()])
-
-        # 入力画像の読み込み
-        image_id = self.image_ids[index]
+        image_id: str = self.image_ids[index]
         image = Image.open(f"{self.image_dir}/{image_id}.jpg")
-        image = transform(image)
         
-        # アノテーションデータの読み込み
+        
         records = self.df[self.df["image_id"] == image_id]
         boxes = torch.tensor(records[["xmin", "ymin", "xmax", "ymax"]].values, dtype=torch.float32)
-        
+
+        width: int = records["width"].values[0]
+        height: int = records["height"].values[0]
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
         area = torch.as_tensor(area, dtype=torch.float32)
         
-        labels = torch.tensor(records["class"].values, dtype=torch.int64)
+        labels = torch.tensor(records["class"].values, dtype=torch.int32)
         
-        iscrowd = torch.zeros((records.shape[0], ), dtype=torch.int64)
+        iscrowd = torch.zeros((records.shape[0], ), dtype=torch.int32)
+
+        #display_image(image, boxes, labels, image_id)
+
+        sample = {
+            'image': np.array(image, dtype=np.float32),
+            'bboxes': boxes,
+            'labels': labels
+        }
+        sample = self.transforms(**sample)
+        sample["bboxes"] = np.array(sample["bboxes"])
+        sample["bboxes"][:, [0, 1, 2, 3]] = sample["bboxes"][
+            :, [1, 0, 3, 2]
+        ]  # convert to yxyx
+        image = sample['image']
+        boxes = sample['bboxes']
+        labels = sample['labels']
         
         target = {}
-        target["boxes"] = boxes
-        target["labels"]= labels
+        #target["boxes"] = torch.as_tensor(boxes, dtype=torch.float32)
+        target["labels"]= torch.as_tensor(labels),
         target["image_id"] = torch.tensor([index])
-        target["area"] = area
-        target["iscrowd"] = iscrowd
+        #target["area"] = area
+        #target["img_size"] = torch.tensor([width, height], dtype=torch.int32)
+        #target["img_scale"] = torch.tensor([1.])
+        #target["iscrowd"] = iscrowd
+
+        ## for EfficientDet
+        target["bbox"] = torch.as_tensor(boxes, dtype=torch.float32)
+        target["cls"] = target["labels"]
         
+        #{
+        #  'labels': [tensor([[1],[2]], dtype=torch.int32)],
+        #  'image_id': tensor([[3366],[ 853]]),
+        #  'bbox': tensor([[[204.8000, 1.5375, 367.6160, 330.5706]], [[140.2880, 124.6492, 290.8160, 325.6964]]]),
+        #  'cls': [tensor([[1],[2]], dtype=torch.int32)]
+        #}
+        #({'labels': (tensor([1], dtype=torch.int32),), 'image_id': tensor([3366]), 'bbox': tensor([[204.8000,   1.5375, 367.6160, 330.5706]]), 'cls': (tensor([1], dtype=torch.int32),)},
+        # {'labels': (tensor([2], dtype=torch.int32),), 'image_id': tensor([853]), 'bbox': tensor([[140.2880, 124.6492, 290.8160, 325.6964]]), 'cls': (tensor([2], dtype=torch.int32),)})
+        # {'bbox': [tensor([[  1.5375, 204.8000, 330.5706, 367.6160]]), tensor([[124.6492, 140.2880, 325.6964, 290.8160]])], 'cls': [(tensor([1], dtype=torch.int32),), (tensor([2], dtype=torch.int32),)]}
+
         return image, target, image_id
     
     def __len__(self):
         return self.image_ids.shape[0]
 
 
-def create_loaders(conf: Dict, use_cache: bool=True) -> Dict[str, DataLoader]:
-    image_dir = './data/oxford/images'
-    cache_filepath = './data/oxford/'
-    if use_cache:
-        train = load(cache_filepath + 'train.pkl')
-        val = load(cache_filepath + 'val.pkl')
-    else:
-        df = parse_xmls()
-        dataset = DetectionDataset(df, image_dir)
-        torch.manual_seed(2021)
-        n_train = int(len(dataset) * 0.8)
-        n_val = len(dataset) - n_train
-        train, val = random_split(dataset, [n_train, n_val])
-        save(train, cache_filepath + 'train.pkl')
-        save(val, cache_filepath + 'val.pkl')
-        print('saving dataset complete.')
-
-    def collate_fn(batch):
-        return tuple(zip(*batch))
-
-    trainloader = DataLoader(
-        train,
-        batch_size=conf.get('batch_size', 1),
-        shuffle=True,
-        collate_fn=collate_fn,
-        num_workers=2,
-        pin_memory=True
-    )
-    valloader = DataLoader(
-        val,
-        batch_size=conf.get('batch_size', 1),
-        shuffle=False,
-        collate_fn=collate_fn,
-        num_workers=2,
-        pin_memory=True
-    )
-    return {
-        'train': trainloader,
-        'val': valloader
-    }
-
-def save(dataset: DetectionDataset, filepath: str):
+def save_df(df: pd.DataFrame, filepath: str):
     with open(filepath, 'wb') as f:
-        pickle.dump(dataset, f)
+        pickle.dump(df, f)
 
-def load(filepath: str) -> DetectionDataset:
+def load_df(filepath: str) -> pd.DataFrame:
     with open(filepath, 'rb') as f:
         data = pickle.load(f)
     return data
-
-
-if __name__ == '__main__':
-    conf = {'batch_size': 2}
-    loaders = create_loaders(conf, False)
-    print(len(loaders['train']), len(loaders['val']))
