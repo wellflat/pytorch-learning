@@ -2,10 +2,9 @@
 __pycache__/
 data/
 runs/
-checkpoints/
+checkpoint/
 tb_logs/
 cache/
-Pipfile.lock
 *.pth
 *.ckpt
 kaggle.json

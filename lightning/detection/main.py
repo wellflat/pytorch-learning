@@ -14,11 +14,11 @@ from config import DataConfig, TrainingConfig
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Classifier Training')
+    parser = argparse.ArgumentParser(description='Detection Training')
     parser.add_argument('--train', '-t', action='store_true', default=False, help='training mode')
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
-    parser.add_argument('--epochs', default=100, type=int, help='epochs')
-    parser.add_argument('--batch_size', default=100, type=int, help='batch size')
+    parser.add_argument('--epoch', default=100, type=int, help='epoch')
+    parser.add_argument('--batch_size', default=10, type=int, help='batch size')
     parser.add_argument('--resume', '-r', action='store_true',
                         help='resume from checkpoint')
     return parser.parse_args()
@@ -27,9 +27,8 @@ def parse_args():
 if __name__ == '__main__':
     args = parse_args()
     print(args)
-    pl.seed_everything(36, workers=True)
-    data_config = DataConfig()
-    train_config = TrainingConfig(args.lr)
+    data_config = DataConfig(batch_size=args.batch_size)
+    train_config = TrainingConfig(base_lr=args.lr)
     data_module = DataModule(data_config)
     model = Detector(train_config)
     logger = TensorBoardLogger('tb_logs', name='Car - FasterRCNN')
@@ -50,12 +49,12 @@ if __name__ == '__main__':
         DeviceStatsMonitor()
     ]
     trainer = pl.Trainer(
-        max_epochs=args.epochs,
+        max_epochs=args.epoch,
         callbacks=trainer_callbacks,
         logger=logger,
         num_sanity_val_steps=1,
     )
-    model_path = 'oxfordpet-detector.ckpt'
+    model_path = 'fasterrcnn-detector.ckpt'
     if args.train:
         trainer.fit(model, data_module)
         print(f'best model: {trainer_callbacks[0].best_model_path}')

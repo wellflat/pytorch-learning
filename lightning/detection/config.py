@@ -3,9 +3,9 @@ from dataclasses import dataclass
 
 @dataclass
 class DataConfig:
-    image_dir: str = '/content/data/training_images'
+    image_dir: str = '../../data/car/training_images'
     #xml_dir: str = '../../data/oxford/annotations/xmls'
-    train_filepath: str = '/content/data/train_solution_bounding_boxes (1).csv'
+    train_filepath: str = '../../data/car/train_solution_bounding_boxes.csv'
     use_cache: bool = True
     batch_size: int = 8
     train_fraction = 0.8
