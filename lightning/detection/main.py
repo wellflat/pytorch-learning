@@ -19,8 +19,7 @@ def parse_args():
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
     parser.add_argument('--epoch', default=100, type=int, help='epoch')
     parser.add_argument('--batch_size', default=10, type=int, help='batch size')
-    parser.add_argument('--resume', '-r', action='store_true',
-                        help='resume from checkpoint')
+    parser.add_argument('--use_gpu', action='store_true', default=False, help='use gpu')
     return parser.parse_args()
 
 
@@ -52,7 +51,11 @@ if __name__ == '__main__':
         max_epochs=args.epoch,
         callbacks=trainer_callbacks,
         logger=logger,
+        log_every_n_steps=20,
         num_sanity_val_steps=1,
+        accelerator='gpu' if args.use_gpu else 'cpu',
+        precision=16,
+        amp_backend='native'
     )
     model_path = 'fasterrcnn-detector.ckpt'
     if args.train:
