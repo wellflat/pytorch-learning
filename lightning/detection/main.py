@@ -11,21 +11,39 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from loader import DataModule
 from detector import Detector
 from config import DataConfig, TrainingConfig
-
+from clearml import Task, TaskTypes
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Detection Training')
     parser.add_argument('--train', '-t', action='store_true', default=False, help='training mode')
-    parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+    parser.add_argument('--lr', default=0.0001, type=float, help='learning rate')
     parser.add_argument('--epoch', default=100, type=int, help='epoch')
-    parser.add_argument('--batch_size', default=10, type=int, help='batch size')
+    parser.add_argument('--batch_size', '-b', default=10, type=int, help='batch size')
     parser.add_argument('--use_gpu', action='store_true', default=False, help='use gpu')
     return parser.parse_args()
+
+def setup_clearml() -> Task:
+    task = Task.init(
+        project_name='Test',
+        task_name='car-detection',
+        task_type=TaskTypes.training,
+        tags=None,
+        reuse_last_task_id=True,
+        continue_last_task=False,
+        output_uri=None,
+        auto_connect_arg_parser=True,
+        auto_connect_frameworks=True,
+        auto_resource_monitoring=True,
+        auto_connect_streams=True,
+    )
+    task.connect_label_enumeration({'background': 0, 'car': 1})
+    return task
 
 
 if __name__ == '__main__':
     args = parse_args()
     print(args)
+    task = setup_clearml()
     data_config = DataConfig(batch_size=args.batch_size)
     train_config = TrainingConfig(base_lr=args.lr)
     data_module = DataModule(data_config)
@@ -55,14 +73,17 @@ if __name__ == '__main__':
         num_sanity_val_steps=1,
         accelerator='gpu' if args.use_gpu else 'cpu',
         benchmark=True if args.use_gpu else False,
-        precision=16,
-        amp_backend='native' if args.use_gpu else None
+        precision=16 if args.use_gpu else 32,
+        amp_backend='native'
     )
     model_path = 'fasterrcnn-detector.ckpt'
     if args.train:
         trainer.fit(model, data_module)
         print(f'best model: {trainer_callbacks[0].best_model_path}')
         trainer.save_checkpoint(model_path)
+        if 'task' in locals():
+            Task.close(task)
+            print('task closed')
     else:
         print(f'load from {model_path}')
         model = model.load_from_checkpoint(model_path, config=train_config)

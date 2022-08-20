@@ -1,6 +1,6 @@
 from typing import Dict, Tuple, Optional
 import pandas as pd
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 import pytorch_lightning as pl
 from config import DataConfig, Phase
 from car_dataset import DetectionDataset, CarsDatasetAdaptor
@@ -22,13 +22,23 @@ class DataModule(pl.LightningDataModule):
         print(f'stage: {stage}')
         #df = parse_xmls(f'{self.config.xml_dir}/*.xml')
         df = pd.read_csv(self.config.train_filepath)
-        train_df, val_df = self.__split_dataframe(df, self.config.train_fraction, self.config.random_state)
-        train_adaptor = CarsDatasetAdaptor(self.config.image_dir, train_df)
-        val_adaptor = CarsDatasetAdaptor(self.config.image_dir, val_df)
-        train_transforms = get_transforms(phase=Phase.TRIAN)
-        val_transforms = get_transforms(phase=Phase.VAL)
-        train_dataset = DetectionDataset(train_adaptor, train_transforms)
-        val_dataset = DetectionDataset(val_adaptor, val_transforms)
+        use_subset = True
+        if use_subset:
+            adaptor = CarsDatasetAdaptor(self.config.image_dir, df)
+            transforms = get_transforms(phase=Phase.TRIAN)
+            dataset = DetectionDataset(adaptor, transforms)
+            n_train = int(len(dataset) * self.config.train_fraction)
+            n_val = len(dataset) - n_train
+            train_dataset, val_dataset = random_split(dataset, [n_train, n_val])
+        else:
+            train_df, val_df = self.__split_dataframe(df, self.config.train_fraction, self.config.random_state)
+            train_adaptor = CarsDatasetAdaptor(self.config.image_dir, train_df)
+            val_adaptor = CarsDatasetAdaptor(self.config.image_dir, val_df)
+            train_transforms = get_transforms(phase=Phase.TRIAN)
+            val_transforms = get_transforms(phase=Phase.VAL)
+            train_dataset = DetectionDataset(train_adaptor, train_transforms)
+            val_dataset = DetectionDataset(val_adaptor, val_transforms)
+
         self.dataset = {
             'train': train_dataset,
             'val': val_dataset,

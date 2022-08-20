@@ -60,6 +60,7 @@ class Detector(pl.LightningModule):
         preds: List[Dict] = self.net(inputs)
         self.metrics.update(preds, targets)
         ## TODO: debug image
+        '''
         writer: SummaryWriter = self.logger.experiment
         log_id = self.current_epoch % len(batch)
         writer.add_image_with_boxes(
@@ -67,7 +68,7 @@ class Detector(pl.LightningModule):
             inputs[log_id],
             preds[log_id]['boxes'],
             global_step=self.current_epoch
-        )
+        )'''
     
     def validation_epoch_end(self, outputs: List) -> None:
         map = self.metrics.compute()
