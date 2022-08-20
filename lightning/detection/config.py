@@ -8,7 +8,8 @@ class DataConfig:
     train_filepath: str = '../../data/car/train_solution_bounding_boxes.csv'
     use_cache: bool = True
     batch_size: int = 8
-    train_fraction = 0.8
+    train_fraction: float = 0.8
+    random_state: int = 36
     num_workers: int = 2
 
 

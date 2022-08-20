@@ -54,9 +54,9 @@ if __name__ == '__main__':
         log_every_n_steps=20,
         num_sanity_val_steps=1,
         accelerator='gpu' if args.use_gpu else 'cpu',
-        benchmark=True,
+        benchmark=True if args.use_gpu else False,
         precision=16,
-        amp_backend='native'
+        amp_backend='native' if args.use_gpu else None
     )
     model_path = 'fasterrcnn-detector.ckpt'
     if args.train:

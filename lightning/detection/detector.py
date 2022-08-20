@@ -8,6 +8,7 @@ from torchmetrics.detection.mean_ap import MeanAveragePrecision
 from torchvision.models.detection import fasterrcnn_resnet50_fpn_v2, FasterRCNN, FasterRCNN_ResNet50_FPN_V2_Weights
 from torchvision.models.detection import fasterrcnn_mobilenet_v3_large_fpn, FasterRCNN_MobileNet_V3_Large_FPN_Weights
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
+from config import TrainingConfig
 
 
 Batch = Tuple[Tuple[Tensor], Tuple[Dict[str, Tensor]], Tuple[int]]

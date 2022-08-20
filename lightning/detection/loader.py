@@ -23,11 +23,12 @@ class DataModule(pl.LightningDataModule):
         #df = parse_xmls(f'{self.config.xml_dir}/*.xml')
         df = pd.read_csv(self.config.train_filepath)
         train_df, val_df = self.__split_dataframe(df, self.config.train_fraction, self.config.random_state)
-        adaptor = CarsDatasetAdaptor(self.config.image_dir, df)
+        train_adaptor = CarsDatasetAdaptor(self.config.image_dir, train_df)
+        val_adaptor = CarsDatasetAdaptor(self.config.image_dir, val_df)
         train_transforms = get_transforms(phase=Phase.TRIAN)
         val_transforms = get_transforms(phase=Phase.VAL)
-        train_dataset = DetectionDataset(adaptor, train_transforms)
-        val_dataset = DetectionDataset(adaptor, val_transforms)
+        train_dataset = DetectionDataset(train_adaptor, train_transforms)
+        val_dataset = DetectionDataset(val_adaptor, val_transforms)
         self.dataset = {
             'train': train_dataset,
             'val': val_dataset,
