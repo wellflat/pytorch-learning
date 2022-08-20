@@ -1,11 +1,10 @@
 from typing import Dict, Tuple, Optional
 import pandas as pd
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 import pytorch_lightning as pl
-from config import DataConfig
+from config import DataConfig, Phase
 from car_dataset import DetectionDataset, CarsDatasetAdaptor
-
-#Phase = Literal['train', 'val', 'test']
+from transform import get_transforms
 
 class DataModule(pl.LightningDataModule):
     config: DataConfig
@@ -20,19 +19,19 @@ class DataModule(pl.LightningDataModule):
         return super().prepare_data()
 
     def setup(self, stage: Optional[str] = None) -> None:
+        print(f'stage: {stage}')
         #df = parse_xmls(f'{self.config.xml_dir}/*.xml')
         df = pd.read_csv(self.config.train_filepath)
+        train_df, val_df = self.__split_dataframe(df, self.config.train_fraction, self.config.random_state)
         adaptor = CarsDatasetAdaptor(self.config.image_dir, df)
-        dataset = DetectionDataset(adaptor)
-        print(f'len: {len(dataset)}')
-        n_train = int(len(dataset) * self.config.train_fraction)
-        n_val = len(dataset) - n_train
-        train, val = random_split(dataset, [n_train, n_val])
-        
+        train_transforms = get_transforms(phase=Phase.TRIAN)
+        val_transforms = get_transforms(phase=Phase.VAL)
+        train_dataset = DetectionDataset(adaptor, train_transforms)
+        val_dataset = DetectionDataset(adaptor, val_transforms)
         self.dataset = {
-            'train': train,
-            'val': val,
-            'test': val
+            'train': train_dataset,
+            'val': val_dataset,
+            'test': val_dataset
         }
         print(f"train: {len(self.dataset['train'])}, val: {len(self.dataset['val'])}")
     
@@ -53,15 +52,20 @@ class DataModule(pl.LightningDataModule):
             self.dataset[phase],
             batch_size=self.config.batch_size,
             shuffle=True if phase == 'train' else False,
-            collate_fn=self.collate_fn,
+            collate_fn=self.__collate_fn,
             num_workers=self.config.num_workers,
             pin_memory=True,
-            drop_last=True# if phase == "train" else False
+            drop_last=True if phase == "train" else False
         )
         return loader
 
-    def collate_fn(self, batch):
+    def __collate_fn(self, batch):
         return tuple(zip(*batch))
+    
+    def __split_dataframe(self, df: pd.DataFrame, fraction: float, state: int=1) -> Tuple[pd.DataFrame, pd.DataFrame]:
+        df1 = df.sample(frac=fraction, random_state=state)
+        df2 = df.drop(df1.index)
+        return (df1, df2)
 
 
 if __name__ == '__main__':

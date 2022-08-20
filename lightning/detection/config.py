@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-
+from enum import Enum
 
 @dataclass
 class DataConfig:
@@ -22,3 +22,8 @@ class TrainingConfig:
     num_classes: int = 2
     conf_threshold: float = 0.2
     nms_threshold: float = 0.3
+
+class Phase(Enum):
+    TRIAN = 'train'
+    VAL = 'val'
+    TEST = 'test'

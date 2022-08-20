@@ -7,57 +7,47 @@ import torch
 from torch.utils.data import Dataset
 from PIL import Image as PILImage
 import albumentations as A
-from albumentations.pytorch.transforms import ToTensorV2
 from torchvision.transforms.functional import to_pil_image
 
 
 class CarsDatasetAdaptor:
-    def __init__(self, images_dir_path: str, annotations_df: pd.DataFrame):
-        self.images_dir_path = Path(images_dir_path)
-        self.annotations_df = annotations_df
-        self.images = self.annotations_df.image.unique().tolist()
+    image_dir: str
+    df: pd.DataFrame
+
+    def __init__(self, images_dir: str, df: pd.DataFrame):
+        self.images_dir = Path(images_dir)
+        self.df = df
+        self.images = self.df['image'].unique().tolist()
 
     def __len__(self) -> int:
         return len(self.images)
 
     def get_image_and_labels_by_idx(self, index: int) -> Tuple[PILImage.Image, pd.DataFrame, np.ndarray, int, str]:
         image_name = self.images[index]
-        image = PILImage.open(self.images_dir_path / image_name)
-        pascal_bboxes = self.annotations_df[self.annotations_df.image == image_name][
+        image = PILImage.open(self.images_dir / image_name)
+        pascal_bboxes = self.df[self.df['image'] == image_name][
             ["xmin", "ymin", "xmax", "ymax"]
         ].values
         class_labels = np.ones(len(pascal_bboxes))
 
         return image, pascal_bboxes, class_labels, index, image_name
     
-    def show_image(self, index):
+    def show_image(self, index: int):
         image, bboxes, class_labels, image_id, image_name = self.get_image_and_labels_by_idx(index)
         print(f"image_id: {image_id}, name: {image_name}")
         #show_image(image, bboxes.tolist())
-        display_image(image, bboxes, class_labels, image_id)
+        #display_image(image, bboxes, class_labels, image_id)
         print(class_labels)
 
 
 class DetectionDataset(Dataset):
-    ds: CarsDatasetAdaptor
+    adaptor: CarsDatasetAdaptor
     transforms: A.Compose
 
-    def __init__(self, adaptor: CarsDatasetAdaptor):
+    def __init__(self, adaptor: CarsDatasetAdaptor, transforms: A.Compose=None):
         super().__init__()
         self.adaptor = adaptor
-        
-        self.transforms = A.Compose([
-            A.Resize(height=512, width=512, p=1),
-            #A.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),  ## default mean and std
-            #A.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]), 
-            ToTensorV2(p=1)
-        ],
-        p=1.0,
-        bbox_params=A.BboxParams(
-            format="pascal_voc", min_area=0, min_visibility=0, label_fields=["labels"]
-        ))
-
-        ###self.transforms = transforms.Compose([transforms.ToTensor()])
+        self.transforms = transforms
         
     def __getitem__(self, index) -> Tuple[torch.Tensor, Dict, str]:
         (image, boxes, labels, image_id, image_name) = self.adaptor.get_image_and_labels_by_idx(index)
@@ -70,7 +60,9 @@ class DetectionDataset(Dataset):
             "bboxes": boxes,
             "labels": labels,
         }
-        sample = self.transforms(**sample)
+        if self.transforms:
+            sample = self.transforms(**sample)
+        
         image = sample["image"]
 
         boxes = np.array(sample["bboxes"])

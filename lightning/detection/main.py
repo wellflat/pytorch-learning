@@ -54,6 +54,7 @@ if __name__ == '__main__':
         log_every_n_steps=20,
         num_sanity_val_steps=1,
         accelerator='gpu' if args.use_gpu else 'cpu',
+        benchmark=True,
         precision=16,
         amp_backend='native'
     )

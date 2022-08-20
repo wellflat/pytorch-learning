@@ -1,10 +1,9 @@
 from typing import Dict, List, Tuple, Optional
 import torch
 from torch import nn, optim, Tensor
-from torch.optim.lr_scheduler import _LRScheduler, StepLR, OneCycleLR
+from torch.optim.lr_scheduler import StepLR, OneCycleLR
 from torch.utils.tensorboard import SummaryWriter
 import pytorch_lightning as pl
-import torchmetrics
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 from torchvision.models.detection import fasterrcnn_resnet50_fpn_v2, FasterRCNN, FasterRCNN_ResNet50_FPN_V2_Weights
 from torchvision.models.detection import fasterrcnn_mobilenet_v3_large_fpn, FasterRCNN_MobileNet_V3_Large_FPN_Weights
@@ -12,8 +11,6 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 
 
 Batch = Tuple[Tuple[Tensor], Tuple[Dict[str, Tensor]], Tuple[int]]
-#print(type(batch), type(batch[0]), type(inputs), type(inputs[0]), type(targets), type(targets[0]))
-#<class 'tuple'> <class 'tuple'> <class 'tuple'> <class 'torch.Tensor'> <class 'tuple'> <class 'dict'>
 
 class Detector(pl.LightningModule):
     net: FasterRCNN
