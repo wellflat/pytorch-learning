@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Tuple, Optional
 import torch
 from torch import nn, optim, Tensor
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import StepLR, OneCycleLR
 import pytorch_lightning as pl
 import torchmetrics
 from torchvision import models
@@ -22,20 +22,25 @@ class Classifier(pl.LightningModule):
         self.params = [p for p in self.net.parameters() if p.requires_grad]
         self.criterion = nn.CrossEntropyLoss()
         self.save_hyperparameters()
+        average = 'macro' if config.num_classes == 2 else 'micro'
         self.metrics = torchmetrics.MetricCollection([
-            torchmetrics.Accuracy(),
-            torchmetrics.Precision(),
-            torchmetrics.Recall(),
-            torchmetrics.F1Score()
+            torchmetrics.Accuracy(num_classes=config.num_classes, average=average),
+            torchmetrics.Precision(num_classes=config.num_classes, average=average),
+            torchmetrics.Recall(num_classes=config.num_classes, average=average),
+            torchmetrics.F1Score(num_classes=config.num_classes, average=average)
         ])
         self.save_hyperparameters()
 
     def forward(self, x:Tensor) -> Tensor:
-        return self.net.forward(x)
+        return self.net(x)
 
     def configure_optimizers(self) -> Tuple[List[optim.Optimizer], List[optim.lr_scheduler.StepLR]]:
-        optimizer = optim.Adam(self.params, lr=self.config.lr)
-        scheduler = StepLR(optimizer, step_size=self.config.step_size, gamma=self.config.gamma)
+        #scheduler = StepLR(optimizer, step_size=self.config.step_size, gamma=self.config.gamma)
+        optimizer = optim.AdamW(self.params, lr=self.config.base_lr)
+        total_steps = self.trainer.estimated_stepping_batches
+        print(f'total_steps: {total_steps}')
+        scheduler = OneCycleLR(optimizer, max_lr=self.config.base_lr, total_steps=total_steps)
+        scheduler = {"scheduler": scheduler, "interval" : "step" }  ## step for OneCycleLR
         return [optimizer], [scheduler]
     
     def training_step(self, batch:Tuple[Tensor, Tensor], batch_idx:Optional[int]) -> Dict[str, Tensor]:
