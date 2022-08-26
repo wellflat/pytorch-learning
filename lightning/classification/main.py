@@ -16,9 +16,9 @@ from config import DataConfig, TrainingConfig
 def parse_args():
     parser = argparse.ArgumentParser(description='Classifier Training')
     parser.add_argument('--train', '-t', action='store_true', default=False, help='training mode')
-    parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+    parser.add_argument('--lr', default=0.01, type=float, help='learning rate')
     parser.add_argument('--epochs', default=100, type=int, help='epochs')
-    parser.add_argument('--batch_size', default=100, type=int, help='batch size')
+    parser.add_argument('--batch_size', '-b', default=100, type=int, help='batch size')
     parser.add_argument('--resume', '-r', action='store_true',
                         help='resume from checkpoint')
     return parser.parse_args()
@@ -28,7 +28,7 @@ if __name__ == '__main__':
     args = parse_args()
     print(args)
     pl.seed_everything(36, workers=True)
-    data_config = DataConfig()
+    data_config = DataConfig(batch_size=args.batch_size)
     train_config = TrainingConfig(args.lr)
     data_module = MNISTDataModule(data_config)
     model = Classifier(train_config)

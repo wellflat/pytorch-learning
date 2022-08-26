@@ -42,8 +42,21 @@ class MNISTDataset(Dataset):
 
 
 if __name__ == '__main__':
-    train = pd.read_csv('train.csv') 
+    train = pd.read_csv('../../data/mnist/train.csv') 
     #train_df = train.drop('label', axis=1)
     #print('train data:' + str(train_df.shape))
-    ds = MNISTDataset(train)
+    transform = {
+            'train': transforms.Compose([
+                transforms.ToPILImage(),
+                transforms.RandomAffine(degrees=45, translate=(0.1, 0.1), scale=(0.8, 1.2)),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5,), (0.5,))
+            ]),
+            'val': transforms.Compose([
+                transforms.ToPILImage(),
+                transforms.ToTensor(),
+                transforms.Normalize((0.5,), (0.5,))
+            ])
+    }
+    ds = MNISTDataset(train, transform['train'])
     print(ds[0][0].shape)

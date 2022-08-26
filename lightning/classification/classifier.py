@@ -4,6 +4,10 @@ from torch import nn, optim, Tensor
 from torch.optim.lr_scheduler import StepLR
 import pytorch_lightning as pl
 import torchmetrics
+from torchvision import models
+from torchvision.models.resnet import ResNet
+from config import TrainingConfig
+from resnet import MNISTResNet
 
 class Classifier(pl.LightningModule):
     net: nn.Module
@@ -13,7 +17,9 @@ class Classifier(pl.LightningModule):
     def __init__(self, config: TrainingConfig):
         super().__init__()
         self.config = config
-        self.net = MNISTResNet()
+        #self.net = MNISTResNet()
+        self.net = self.create_model(config.num_classes)
+        self.params = [p for p in self.net.parameters() if p.requires_grad]
         self.criterion = nn.CrossEntropyLoss()
         self.save_hyperparameters()
         self.metrics = torchmetrics.MetricCollection([
@@ -28,7 +34,7 @@ class Classifier(pl.LightningModule):
         return self.net.forward(x)
 
     def configure_optimizers(self) -> Tuple[List[optim.Optimizer], List[optim.lr_scheduler.StepLR]]:
-        optimizer = optim.Adam(self.parameters(), lr=self.config.lr)
+        optimizer = optim.Adam(self.params, lr=self.config.lr)
         scheduler = StepLR(optimizer, step_size=self.config.step_size, gamma=self.config.gamma)
         return [optimizer], [scheduler]
     
@@ -66,3 +72,20 @@ class Classifier(pl.LightningModule):
         logits: Tensor = self.net(batch)
         preds = logits.argmax(1)
         return preds
+
+    def create_model(self, num_classes: int) -> ResNet:
+        net = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
+        for p in net.parameters():
+            p.requires_grad = False
+        net.conv1 = nn.Conv2d(
+            in_channels=1,
+            out_channels=64,
+            kernel_size=net.conv1.kernel_size,
+            stride=net.conv1.stride,
+            padding=net.conv1.padding,
+            bias=False
+        )
+        fc_input_dim = net.fc.in_features
+        net.fc = nn.Linear(fc_input_dim, num_classes)
+        #print(net)
+        return net

@@ -69,4 +69,8 @@ class MNISTDataModule(pl.LightningDataModule):
         df2 = df.drop(df1.index)
         return (df1, df2)
 
-    
+
+if __name__ == '__main__' :
+    config = DataConfig()
+    data_module = MNISTDataModule(config)
+    data_module.setup('fit')
