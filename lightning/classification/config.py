@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-
+from enum import Enum
 
 @dataclass
 class DataConfig:
@@ -16,3 +16,9 @@ class TrainingConfig:
     step_size: int = 25
     gamma: float = 0.1
     num_classes: int = 10
+
+
+class Phase(Enum):
+    TRIAN = 'train'
+    VAL = 'val'
+    TEST = 'test'
