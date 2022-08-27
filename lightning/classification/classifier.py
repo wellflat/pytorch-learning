@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Tuple, Optional
 import torch
 from torch import nn, optim, Tensor
+from torch.nn import functional as F
 from torch.optim.lr_scheduler import StepLR, OneCycleLR
 import pytorch_lightning as pl
 import torchmetrics
@@ -56,7 +57,7 @@ class Classifier(pl.LightningModule):
     def validation_step(self, batch:Tuple[Tensor, Tensor] , batch_idx:int) -> None:
         inputs, targets = batch
         logits: Tensor = self.net(inputs)
-        preds = logits.argmax(1)
+        preds = logits.argmax(dim=1)
         #accuracy = sum(preds == targets) / len(targets)
         self.metrics(preds, targets)
         self.log_dict(self.metrics, prog_bar=True, on_step=False, on_epoch=True)
@@ -64,18 +65,19 @@ class Classifier(pl.LightningModule):
     def validation_epoch_end(self, outputs:Dict[str, Tensor]) -> None:
         return
 
-    def test_step(self, batch:Tensor, batch_idx:int) -> Tensor:
+    def test_step(self, batch: Tensor, batch_idx: int) -> Tensor:
         logits: torch.Tensor = self.net(batch)
-        preds = logits.argmax(1)
+        preds = logits.argmax(dim=1)
         return preds
 
-    def test_epoch_end(self, outputs:Tensor) -> Tensor:
+    def test_epoch_end(self, outputs: Tensor) -> Tensor:
         preds = torch.cat(outputs)
         return preds
     
-    def predict_step(self, batch, batch_idx:int) -> Tensor:
+    def predict_step(self, batch: Tensor, batch_idx:int) -> Tensor:
         logits: Tensor = self.net(batch)
-        preds = logits.argmax(1)
+        probas = F.softmax(logits, dim=1)
+        preds = probas.argmax(dim=1)
         return preds
 
     def create_model(self, num_classes: int) -> ResNet:
