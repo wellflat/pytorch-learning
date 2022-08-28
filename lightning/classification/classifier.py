@@ -1,14 +1,21 @@
 from typing import Any, Dict, List, Tuple, Optional
+import math
 import torch
 from torch import nn, optim, Tensor
 from torch.nn import functional as F
 from torch.optim.lr_scheduler import StepLR, OneCycleLR
+from torch.utils.tensorboard import SummaryWriter
 import pytorch_lightning as pl
 import torchmetrics
 from torchvision import models
 from torchvision.models.resnet import ResNet
+from torchvision.transforms.functional import to_pil_image
+from torchvision import transforms
+import matplotlib.pyplot as plt
+
 from config import TrainingConfig
 from resnet import MNISTResNet
+
 
 class Classifier(pl.LightningModule):
     net: nn.Module
@@ -31,6 +38,11 @@ class Classifier(pl.LightningModule):
             torchmetrics.F1Score(num_classes=config.num_classes, average=average)
         ])
         self.save_hyperparameters()
+        ## for debug image
+        self.inv_trans = transforms.Compose([
+            transforms.Normalize(mean = [ 0., 0., 0. ], std = [ 1/0.229, 1/0.224, 1/0.225 ]),
+            transforms.Normalize(mean = [ -0.485, -0.456, -0.406 ], std = [ 1., 1., 1. ]),
+        ])
 
     def forward(self, x:Tensor) -> Tensor:
         return self.net(x)
@@ -57,10 +69,13 @@ class Classifier(pl.LightningModule):
     def validation_step(self, batch:Tuple[Tensor, Tensor] , batch_idx:int) -> None:
         inputs, targets = batch
         logits: Tensor = self.net(inputs)
-        preds = logits.argmax(dim=1)
+        probas = F.softmax(logits, dim=1)
+        preds = probas.argmax(dim=1)
         #accuracy = sum(preds == targets) / len(targets)
         self.metrics(preds, targets)
         self.log_dict(self.metrics, prog_bar=True, on_step=False, on_epoch=True)
+        ## debug image
+        self.debug_image(inputs, probas, preds, batch_idx)
     
     def validation_epoch_end(self, outputs:Dict[str, Tensor]) -> None:
         return
@@ -96,3 +111,15 @@ class Classifier(pl.LightningModule):
         net.fc = nn.Linear(fc_input_dim, num_classes)
         #print(net)
         return net
+
+    def debug_image(self, inputs: torch.Tensor, probas: torch.Tensor, preds: torch.Tensor, batch_idx: int) -> None:
+        writer: SummaryWriter = self.logger.experiment
+        input_id = batch_idx % len(inputs)
+        inv_image = to_pil_image(self.inv_trans(inputs[input_id]))
+        pred_class = preds[input_id].item()
+        pred_proba = math.floor(probas[input_id][preds[input_id]].item()*1e+3) / 1e+3
+        plt.imshow(inv_image)
+        plt.title(f'{self.current_epoch}: {pred_class}')
+        plt.xlabel(f"score: {pred_proba}")
+        plt.tick_params(bottom=False, left=False, labelbottom=False, labelleft=False)
+        plt.show()
