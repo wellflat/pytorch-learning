@@ -17,6 +17,7 @@ timm = "^0.6.7"
 effdet = "0.2.4"
 pandas = "^1.4.3"
 albumentations = "^1.2.1"
+boto3-type-annotations = "^0.3.1"
 
 [tool.poetry.dev-dependencies]
 

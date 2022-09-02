@@ -3,6 +3,7 @@ import math
 import torch
 from torch import nn, optim, Tensor
 from torch.nn import functional as F
+from torch.nn.parameter import Parameter
 from torch.optim.lr_scheduler import StepLR, OneCycleLR
 from torch.utils.tensorboard import SummaryWriter
 import pytorch_lightning as pl
@@ -19,6 +20,7 @@ from resnet import MNISTResNet
 
 class Classifier(pl.LightningModule):
     net: nn.Module
+    params: List[Parameter]
     criterion: nn.CrossEntropyLoss
     config: TrainingConfig
 
@@ -29,7 +31,6 @@ class Classifier(pl.LightningModule):
         self.net = self.create_model(config.num_classes)
         self.params = [p for p in self.net.parameters() if p.requires_grad]
         self.criterion = nn.CrossEntropyLoss()
-        self.save_hyperparameters()
         average = 'macro' if config.num_classes == 2 else 'micro'
         self.metrics = torchmetrics.MetricCollection([
             torchmetrics.Accuracy(num_classes=config.num_classes, average=average),
@@ -114,7 +115,8 @@ class Classifier(pl.LightningModule):
 
     def debug_image(self, inputs: torch.Tensor, probas: torch.Tensor, preds: torch.Tensor, batch_idx: int) -> None:
         writer: SummaryWriter = self.logger.experiment
-        input_id = batch_idx % len(inputs)
+        #input_id = batch_idx % len(inputs)
+        input_id = random.randrange(len(inputs))
         inv_image = to_pil_image(self.inv_trans(inputs[input_id]))
         pred_class = preds[input_id].item()
         pred_proba = math.floor(probas[input_id][preds[input_id]].item()*1e+3) / 1e+3
