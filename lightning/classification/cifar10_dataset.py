@@ -1,45 +1,51 @@
-from typing import Dict, Tuple, Literal, Optional
-import pandas as pd
-from pandas import DataFrame
+from typing import Dict, Optional
 from torch.utils.data import DataLoader
 from torchvision import transforms
 import pytorch_lightning as pl
-from config import DataConfig
-from dataset import MNISTDataset
+from config import DataConfig, Phase
+import torchvision
 
-Phase = Literal['train', 'val', 'test']
 
-class MNISTDataModule(pl.LightningDataModule):
+
+class CIFAR10DataModule(pl.LightningDataModule):
     config: DataConfig
     dataset: Dict[Phase, DataLoader]
 
-    def __init__(self, config:DataConfig):
+    def __init__(self, config: DataConfig):
         super().__init__()
         self.config = config
     
     def setup(self, stage: Optional[str] = None) -> None:
-        train = pd.read_csv(self.config.train_filepath) 
-        test = pd.read_csv(self.config.test_filepath)
-        train, val = self.__split_dataframe(train)
         transform = {
             'train': transforms.Compose([
-                transforms.ToPILImage(),
-                transforms.RandomAffine(degrees=45, translate=(0.1, 0.1), scale=(0.8, 1.2)),
+                transforms.RandomResizedCrop(224),
+                transforms.RandomHorizontalFlip(p=0.5),
                 transforms.ToTensor(),
-                transforms.Normalize((0.5,), (0.5,))
+                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
             ]),
             'val': transforms.Compose([
-                transforms.ToPILImage(),
+                transforms.Resize((256, 256)),
+                transforms.CenterCrop(224),
                 transforms.ToTensor(),
-                transforms.Normalize((0.5,), (0.5,))
-            ])
+                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            ]),
         }
+        trainset = torchvision.datasets.CIFAR10(
+            root='./data',
+            train=True,
+            download=True,
+            transform=transform['train']
+        )
+        valset = torchvision.datasets.CIFAR10(
+            root='./data',
+            train=False,
+            download=True,
+            transform=transform['val']
+        )
         self.dataset = {
-            'train': MNISTDataset(train, transform['train']),
-            'val': MNISTDataset(val, transform['val']),
-            'test': MNISTDataset(test, transform['val']) 
+            'train': trainset,
+            'val': valset
         }
-        print(f"train: {len(self.dataset['train'])}, val: {len(self.dataset['val'])}")
     
     def train_dataloader(self) -> DataLoader:
         return self.__get_loader('train')
@@ -62,15 +68,12 @@ class MNISTDataModule(pl.LightningDataModule):
             pin_memory=True,
             drop_last=True if phase == "train" else False
         )
-        return loader        
-
-    def __split_dataframe(self, df:DataFrame, fraction=0.9, state=1) -> Tuple[DataFrame, DataFrame]:
-        df1 = df.sample(frac=fraction, random_state=state)
-        df2 = df.drop(df1.index)
-        return (df1, df2)
+        return loader   
 
 
 if __name__ == '__main__' :
     config = DataConfig()
-    data_module = MNISTDataModule(config)
+    #data_module = MNISTDataModule(config)
+    #data_module.setup('fit')
+    data_module = CIFAR10DataModule(config)
     data_module.setup('fit')
