@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional, Union
 import torch
 from torch import nn, optim, Tensor
 from torch.nn import functional as F
@@ -6,7 +6,6 @@ from torch.nn.parameter import Parameter
 from torch.optim.lr_scheduler import _LRScheduler, StepLR, OneCycleLR
 import pytorch_lightning as pl
 from torchvision import models
-from torchvision.models.resnet import ResNet
 import torchmetrics
 from config import ModelConfig
 from resnet import MNISTResNet
@@ -23,7 +22,7 @@ class Classifier(pl.LightningModule):
         super().__init__()
         self.config = config
         #self.net = MNISTResNet()
-        self.net = self.create_model(config.num_classes)
+        self.net = self.create_model(config.num_classes, config.arch)
         self.params = [p for p in self.net.parameters() if p.requires_grad]
         self.criterion = nn.CrossEntropyLoss()
         average = 'macro' if config.num_classes == 2 else 'micro'
@@ -95,21 +94,20 @@ class Classifier(pl.LightningModule):
         preds = probas.argmax(dim=1)
         return preds
 
-    def create_model(self, num_classes: int) -> ResNet:
-        net = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
+    def create_model(self, num_classes: int, arch: str='resnet50') -> nn.Module:
+        print(f'create model: {arch}')
+        if arch == 'resnet50':
+            net = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
+        else: ## mobilenet v3
+            net = models.mobilenet_v3_large(weights=models.MobileNet_V3_Large_Weights.DEFAULT)
         for p in net.parameters():
             p.requires_grad = False
-        '''
-        net.conv1 = nn.Conv2d(
-            in_channels=1,
-            out_channels=64,
-            kernel_size=net.conv1.kernel_size,
-            stride=net.conv1.stride,
-            padding=net.conv1.padding,
-            bias=False
-        )'''
-        fc_input_dim = net.fc.in_features
-        net.fc = nn.Linear(fc_input_dim, num_classes)
+        if arch == 'resnet50':
+            fc_input_dim = net.fc.in_features
+            net.fc = nn.Linear(fc_input_dim, num_classes)
+        else:
+            classifier_input_dim = net.classifier[3].in_features
+            net.classifier[3] = nn.Linear(classifier_input_dim, num_classes)
         #print(net)
         return net
 

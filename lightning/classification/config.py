@@ -13,7 +13,7 @@ class DataConfig:
 
 @dataclass
 class ModelConfig:
-    arch: str = 'resnet50'  # 'mobilenetv3'
+    arch: str = 'mobilenetv3' #'resnet50' 
     num_classes: int = 2
     base_lr: int = 1e-4  ## AdamW: 1e-4, SGD: 1e-2
     step_size: int = 25  ## for StepLR
