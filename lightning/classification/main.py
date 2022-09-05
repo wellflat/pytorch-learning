@@ -64,6 +64,8 @@ def get_trainer_callbacks() -> List[Callback]:
 if __name__ == '__main__':
     args = parse_args()
     print(args)
+    if not args.offline:
+        task = setup_clearml()
     data_config = DataConfig(batch_size=args.batch_size)
     data_module = DataModule(data_config)
     model_config = ModelConfig(args.lr)
@@ -78,7 +80,7 @@ if __name__ == '__main__':
         num_sanity_val_steps=1,
         accelerator='gpu' if args.gpu else 'cpu',
         benchmark=True,
-        precision=16 if args.gpu else 'bf16',
+        precision=16 if args.gpu else 32, #'bf16',
         amp_backend="native"
     )
     model_path = 'classifier.ckpt'
@@ -86,6 +88,8 @@ if __name__ == '__main__':
         trainer.fit(model, data_module)
         print(f'best model: {trainer_callbacks[0].best_model_path}')
         trainer.save_checkpoint(model_path)
+        if not args.offline:
+            Task.close(task)
     else:
         print(f'load from {model_path}')
         model = model.load_from_checkpoint(model_path, config=model_config)

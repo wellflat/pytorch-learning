@@ -36,10 +36,3 @@ def get_transforms(phase: Phase) -> A.Compose:
         ])
     return transforms
 
-## debug image for MLOps tools
-def get_inv_transform() -> A.Compose:
-    transforms = A.Compose([
-        A.Normalize(mean=[ 0., 0., 0. ], std=[ 1/0.229, 1/0.224, 1/0.225 ]),
-        A.Normalize(mean=[ -0.485, -0.456, -0.406 ], std=[ 1., 1., 1. ]),
-    ])
-    return transforms
