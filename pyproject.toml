@@ -1,9 +1,9 @@
 [tool.poetry]
-name = "pytorch-samples"
-version = "0.1.0"
+name = "pytorch-learning"
+version = "0.2.0"
 description = ""
 authors = ["wellflat <wellflat@gmail.com>"]
-license = "MIT"
+license = "https://github.com/pytorch/pytorch/blob/master/LICENSE"
 packages = [
     {include="lightning", from="."}
 ]
