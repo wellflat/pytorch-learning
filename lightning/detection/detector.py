@@ -1,31 +1,31 @@
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple
 import torch
 from torch import nn, optim, Tensor
-from torch.optim.lr_scheduler import StepLR, OneCycleLR
-from torch.utils.tensorboard import SummaryWriter
+from torch.nn.parameter import Parameter
+from torch.optim.lr_scheduler import _LRScheduler, OneCycleLR
 import pytorch_lightning as pl
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
-from torchvision.models.detection import fasterrcnn_resnet50_fpn_v2, FasterRCNN, FasterRCNN_ResNet50_FPN_V2_Weights
-from torchvision.models.detection import fasterrcnn_mobilenet_v3_large_fpn, FasterRCNN_MobileNet_V3_Large_FPN_Weights
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-from config import TrainingConfig
+from torchvision.models import detection
+from config import ModelConfig
+from debug_image import display_image
 
 
 Batch = Tuple[Tuple[Tensor], Tuple[Dict[str, Tensor]], Tuple[int]]
 
 class Detector(pl.LightningModule):
-    net: FasterRCNN
-    config: TrainingConfig
+    net: nn.Module
+    params: List[Parameter]
+    config: ModelConfig
     metrics: MeanAveragePrecision
-    writer: SummaryWriter
 
-    def __init__(self, config: TrainingConfig):
+    def __init__(self, config: ModelConfig):
         super().__init__()
         self.config = config
-        self.net = self.create_model(num_claases=config.num_classes)
+        self.net = self.create_model(num_classes=config.num_classes, arch=config.arch)
         self.params = [p for p in self.net.parameters() if p.requires_grad]
         self.metrics = MeanAveragePrecision()
         self.save_hyperparameters()
+        self.on_debug_image = config.on_debug_image
 
     def forward(self, images: Tensor, targets: Dict=None) -> Tensor:
         if targets is not None:
@@ -34,10 +34,9 @@ class Detector(pl.LightningModule):
             outputs = self.net(images)
         return outputs
 
-    def configure_optimizers(self) -> Tuple[List[optim.Optimizer], List[optim.lr_scheduler._LRScheduler]]:
+    def configure_optimizers(self) -> Tuple[List[optim.Optimizer], List[_LRScheduler]]:
         optimizer = optim.AdamW(self.params, lr=self.config.base_lr)
         #optimizer = optim.SGD(self.params, lr=self.config.base_lr, momentum=0.9, weight_decay=5e-4)
-        #scheduler = StepLR(optimizer, step_size=self.config.step_size, gamma=self.config.gamma)
         total_steps = self.trainer.estimated_stepping_batches
         print(f'total_steps: {total_steps}')
         scheduler = OneCycleLR(optimizer, max_lr=self.config.base_lr, total_steps=total_steps)
@@ -59,19 +58,20 @@ class Detector(pl.LightningModule):
         inputs, targets, ids = batch
         preds: List[Dict] = self.net(inputs)
         self.metrics.update(preds, targets)
-        ## TODO: add logging interval
-        writer: SummaryWriter = self.logger.experiment
-        log_id = batch_idx % len(inputs)
-        writer.add_image_with_boxes(
-            f'{self.current_epoch}_{ids[log_id]}',
-            inputs[log_id],
-            preds[log_id]['boxes'],
-            global_step=self.current_epoch
-        )
+
+        if self.on_debug_image:
+            display_image(
+                self.logger.experiment,
+                self.current_epoch,
+                inputs,
+                preds,
+                ids
+            )
     
     def validation_epoch_end(self, outputs: List) -> None:
         map = self.metrics.compute()
         self.log_dict(map, prog_bar=True)
+        print(f"mAP: {map['map']}, mAP50: {map['map_50']}")
         self.metrics.reset()
 
     ## TODO
@@ -85,36 +85,22 @@ class Detector(pl.LightningModule):
         preds = self.net(input)
         return preds
 
-    def create_model(self, num_claases: int=2, pretrained: bool=True) -> FasterRCNN:
+    def create_model(self, num_classes: int, arch: str='resnet50') -> nn.Module:
+        print(f'create model: {arch}, num classes: {num_classes}')
         ## documentation
         ## https://pytorch.org/vision/master/models/generated/torchvision.models.detection.fasterrcnn_resnet50_fpn.html#torchvision.models.detection.fasterrcnn_resnet50_fpn
-        '''
-        net = fasterrcnn_resnet50_fpn_v2(
-            weights=FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT,
-            trainable_backbone_layers=3
-        )
-        in_features = net.roi_heads.box_predictor.cls_score.in_features
-        net.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_claases)
-        '''
-        '''
-        RoIHeads(
-          (box_roi_pool): MultiScaleRoIAlign()
-          (box_head): TwoMLPHead(
-            (fc6): Linear(in_features=12544, out_features=1024, bias=True)
-            (fc7): Linear(in_features=1024, out_features=1024, bias=True)
-          )
-          (box_predictor): FastRCNNPredictor(
-            (cls_score): Linear(in_features=1024, out_features=2, bias=True)
-            (bbox_pred): Linear(in_features=1024, out_features=8, bias=True)
-          )
-        )'''
+        if arch == 'resnet50':
+            net = detection.fasterrcnn_resnet50_fpn_v2(
+                weights=detection.FasterRCNN_ResNet50_FPN_V2_Weights.DEFAULT,
+                trainable_backbone_layers=3
+            )
+        else:  ## mobilenet v3
+            net = detection.fasterrcnn_mobilenet_v3_large_fpn(
+                weights=detection.FasterRCNN_MobileNet_V3_Large_FPN_Weights.DEFAULT,
+                num_claases=num_classes,
+                trainable_backbone_layers=3
+            )
         
-        net = fasterrcnn_mobilenet_v3_large_fpn(
-            weights=FasterRCNN_MobileNet_V3_Large_FPN_Weights.DEFAULT,
-            num_claases=num_claases,
-            trainable_backbone_layers=3
-        )
         in_features = net.roi_heads.box_predictor.cls_score.in_features
-        net.roi_heads.box_predictor = FastRCNNPredictor(in_features, num_claases)
-        
+        net.roi_heads.box_predictor = detection.faster_rcnn.FastRCNNPredictor(in_features, num_classes)
         return net

@@ -68,7 +68,7 @@ if __name__ == '__main__':
         task = setup_clearml()
     data_config = DataConfig(batch_size=args.batch_size)
     data_module = DataModule(data_config)
-    model_config = ModelConfig(args.lr)
+    model_config = ModelConfig(base_lr=args.lr)
     model = Classifier(model_config)
     logger = TensorBoardLogger('tb_logs', name='Classifier Training')
     trainer_callbacks = get_trainer_callbacks()

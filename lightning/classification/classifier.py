@@ -63,8 +63,7 @@ class Classifier(pl.LightningModule):
         probas = F.softmax(logits, dim=1)
         preds = probas.argmax(dim=1)
         #accuracy = sum(preds == targets) / len(targets)
-        self.metrics(preds, targets)
-        self.log_dict(self.metrics, prog_bar=True, on_step=False, on_epoch=True)
+        self.metrics.update(preds, targets)
 
         if self.on_debug_image:
             display_image(
@@ -77,7 +76,10 @@ class Classifier(pl.LightningModule):
             )
     
     def validation_epoch_end(self, outputs:Dict[str, Tensor]) -> None:
-        return
+        m = self.metrics.compute()
+        self.log_dict(m)
+        print(f"Acc: {m['Accuracy']}, P: {m['Precision']}, R: {m['Recall']}")
+        self.metrics.reset()
 
     def test_step(self, batch: Tensor, batch_idx: int) -> Tensor:
         logits: Tensor = self.net(batch)
@@ -95,7 +97,7 @@ class Classifier(pl.LightningModule):
         return preds
 
     def create_model(self, num_classes: int, arch: str='resnet50') -> nn.Module:
-        print(f'create model: {arch}')
+        print(f'create model: {arch}, num classes: {num_classes}')
         if arch == 'resnet50':
             net = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
         else: ## mobilenet v3

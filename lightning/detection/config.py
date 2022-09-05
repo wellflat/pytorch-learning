@@ -14,15 +14,15 @@ class DataConfig:
 
 
 @dataclass
-class TrainingConfig:
-    #base_lr: float = 1e-2 # 0.01 for SGD
-    base_lr: float = 1e-4  # 0.0001 for AdamW
-    step_size: int = 25
-    gamma: float = 0.1
-    img_size: int = 512
+class ModelConfig:
+    arch: str = 'mobilenetv3' #'resnet50' 
     num_classes: int = 2
+    base_lr: int = 1e-4  ## AdamW: 1e-4, SGD: 1e-2
+    step_size: int = 25  ## for StepLR
+    gamma: float = 0.1
     conf_threshold: float = 0.2
     nms_threshold: float = 0.3
+    on_debug_image: bool = True  ## for MLOps tools
 
 class Phase(Enum):
     TRIAN = 'train'
