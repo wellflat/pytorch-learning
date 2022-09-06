@@ -13,12 +13,12 @@ python = "^3.9"
 torch = "^1.12.1"
 torchvision = "^0.13.1"
 pytorch-lightning = "^1.7.0"
-timm = "^0.6.7"
-effdet = "0.2.4"
 pandas = "^1.4.3"
 albumentations = "^1.2.1"
-boto3-type-annotations = "^0.3.1"
+omegaconf = "^2.2.3"
 rich = "^12.5.1"
+boto3-type-annotations = "^0.3.1"
+
 
 [tool.poetry.dev-dependencies]
 

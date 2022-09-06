@@ -1,13 +1,14 @@
 from dataclasses import dataclass
 from enum import Enum
 
+
 @dataclass
 class DataConfig:
     train_filepath: str = '../../data/mnist/train.csv'
     test_filepath: str = '../../data/mnist/test.csv'
     image_dir: str = '../../data/cat_or_dog/train2'
     batch_size: int = 100
-    train_fraction = 0.8
+    train_fraction: float = 0.8
     num_workers: int = 2
 
 
@@ -19,6 +20,12 @@ class ModelConfig:
     step_size: int = 25  ## for StepLR
     gamma: float = 0.1
     on_debug_image: bool = True  ## for MLOps tools
+
+
+@dataclass
+class ExperimentConfig:
+    data: DataConfig
+    model: ModelConfig
 
 
 class Phase(Enum):
