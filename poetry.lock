@@ -235,6 +235,19 @@ six = ">=1.5.2"
 protobuf = ["grpcio-tools (>=1.48.0)"]
 
 [[package]]
+name = "hydra-core"
+version = "1.2.0"
+description = "A framework for elegantly configuring complex applications"
+category = "main"
+optional = false
+python-versions = "*"
+
+[package.dependencies]
+antlr4-python3-runtime = ">=4.9.0,<4.10.0"
+omegaconf = ">=2.2,<3.0"
+packaging = "*"
+
+[[package]]
 name = "idna"
 version = "3.3"
 description = "Internationalized Domain Names in Applications (IDNA)"
@@ -887,7 +900,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-flake8", "pytest-
 [metadata]
 lock-version = "1.1"
 python-versions = "^3.9"
-content-hash = "e0a50709650c90de0bd70e879d788ff6cce0601fac9be1c7d52affb860a73241"
+content-hash = "d27fb64e6b4a055af67661b6a96000c3073d457a86f503019582c6ece930c04c"
 
 [metadata.files]
 absl-py = []
@@ -917,6 +930,7 @@ fsspec = []
 google-auth = []
 google-auth-oauthlib = []
 grpcio = []
+hydra-core = []
 idna = [
     {file = "idna-3.3-py3-none-any.whl", hash = "sha256:84d9dd047ffa80596e0f246e2eab0b391788b0503584e8945f2368256d2735ff"},
     {file = "idna-3.3.tar.gz", hash = "sha256:9d643ff0a55b762d5cdb124b8eaa99c66322e2157b69160bc32796e824360e6d"},
