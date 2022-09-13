@@ -2,12 +2,10 @@
 
 from typing import List
 import argparse
-import pandas as pd
-import torch
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, DeviceStatsMonitor, LearningRateMonitor, ModelCheckpoint, EarlyStopping, RichProgressBar
 from pytorch_lightning.loggers import TensorBoardLogger
-from loader import DataModule
+from car_dataset import DataModule
 from detector import Detector
 from config import DataConfig, ModelConfig
 from clearml import Task, TaskTypes
@@ -84,7 +82,7 @@ if __name__ == '__main__':
         precision=16 if args.gpu else 32,
         amp_backend='native'
     )
-    model_path = 'detector.ckpt'
+    model_path = 'checkpoints/detector.ckpt'
     if args.train:
         trainer.fit(model, data_module)
         print(f'best model: {trainer_callbacks[0].best_model_path}')
