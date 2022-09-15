@@ -5,7 +5,8 @@ import argparse
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, DeviceStatsMonitor, LearningRateMonitor, ModelCheckpoint, EarlyStopping, RichProgressBar
 from pytorch_lightning.loggers import TensorBoardLogger
-from car_dataset import DataModule
+#from car_dataset import DataModule
+from cml_dataset import DataModule
 from detector import Detector
 from config import DataConfig, ModelConfig
 from clearml import Task, TaskTypes
@@ -25,7 +26,7 @@ def parse_args():
 def setup_clearml() -> Task:
     task = Task.init(
         project_name='Test',
-        task_name='car-detection',
+        task_name='object detection',
         task_type=TaskTypes.training,
         tags=None,
         reuse_last_task_id=True,
@@ -36,7 +37,7 @@ def setup_clearml() -> Task:
         auto_resource_monitoring=True,
         auto_connect_streams=True,
     )
-    task.connect_label_enumeration({'background': 0, 'car': 1})
+    task.connect_label_enumeration({'background': 0, 'target': 1})
     return task
 
 
@@ -44,7 +45,7 @@ def get_trainer_callbacks() -> List[Callback]:
     trainer_callbacks = [
         ModelCheckpoint(
             dirpath='./checkpoints',
-            filename='car-detection:{epoch:02d}-{map:.3f}',
+            filename='detection:{epoch:02d}-{map:.3f}',
             monitor='map',
             mode='max',
             save_top_k=1
@@ -69,7 +70,7 @@ if __name__ == '__main__':
     train_config = ModelConfig(base_lr=args.lr)
     data_module = DataModule(data_config)
     model = Detector(train_config)
-    logger = TensorBoardLogger('tb_logs', name='Car - FasterRCNN')
+    logger = TensorBoardLogger('tb_logs', name='detection')
     trainer_callbacks = get_trainer_callbacks()
     trainer = pl.Trainer(
         max_epochs=args.epoch,

@@ -18,19 +18,18 @@ CACHE_FILE = './cache/dataframe.pkl'
 
 class DetectionDataset(Dataset):
     df: DataFrame
-    image_ids: np.ndarray
+    image_names: np.ndarray
     transform: A.Compose
 
     def __init__(self, df: DataFrame, transform: A.Compose=None) -> None:
         super().__init__()
         self.df = df
-        self.image_ids = df['image_id'].unique()
+        self.image_names = df['image_name'].unique()
         self.transform = transform
 
-
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, Dict, str]:
-        image_id = self.image_ids[index]
-        row = self.df[self.df["image_id"] == image_id]
+        image_name = self.image_names[index]
+        row = self.df[self.df["image_name"] == image_name]
         image = PILImage.open(row['filepath'].values[0])
         image = np.array(image, dtype=np.float32)
         image /= 255.0
@@ -46,24 +45,25 @@ class DetectionDataset(Dataset):
             sample = self.transform(**sample)
         
         image: Tensor = sample["image"]
-        boxes = torch.as_tensor(boxes, dtype=torch.float32)
-        labels = torch.as_tensor(labels, dtype=torch.int64)
+        boxes = torch.as_tensor(sample["bboxes"], dtype=torch.float32)
+        labels = torch.as_tensor(sample["labels"], dtype=torch.int64)
+        image_id = torch.tensor([index], dtype=torch.int64)
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
         area = torch.as_tensor(area, dtype=torch.float32)
         iscrowd = torch.zeros((row.shape[0], ), dtype=torch.int64)
-        
+
         target = {
             "boxes": boxes,
             "labels": labels,
+            "image_id": image_id,
             "area": area,
             "iscrowd": iscrowd
         }
 
-        return image, target, image_id
-
+        return image, target, image_name
 
     def __len__(self):
-        return self.image_ids.shape[0]
+        return self.image_names.shape[0]
 
 
 class DataModule(pl.LightningDataModule):
@@ -138,7 +138,7 @@ def get_clearml_dataset(dataset_name: str, version_name: str, query: str, use_ca
         df = load_frame(CACHE_FILE)
         return df
 
-    df = DataFrame(columns=["image_id", "class", "filepath", "width", "height", "xmin", "ymin", "xmax", "ymax"])
+    df = DataFrame(columns=["image_name", "class", "filepath", "width", "height", "xmin", "ymin", "xmax", "ymax"])
     dataview = DataView()
     dataview.add_query(
         dataset_name=dataset_name,
@@ -147,14 +147,13 @@ def get_clearml_dataset(dataset_name: str, version_name: str, query: str, use_ca
     )
     
     for frame in dataview.get_iterator():
-        image_id = frame.source.split("/")[-1].split(".")[0]
-        filepath = frame.get_local_source()
+        image_name: str = frame.source.split("/")[-1].split(".")[0]
+        filepath: str = frame.get_local_source()
         annotation = frame.get_annotations()
-        bboxes = [bbox.bounding_box_xywh for bbox in annotation]
-
+        bboxes: List[float] = [bbox.bounding_box_xywh for bbox in annotation]
         anno_list: List[Dict] = []
         for bbox in bboxes:
-            pt = bbox[0], bbox[1], bbox[0] + bbox[2], bbox[1] + bbox[3]
+            #pt = bbox[0], bbox[1], bbox[0] + bbox[2], bbox[1] + bbox[3]
             row = {}
             row['xmin'] = bbox[0]
             row['ymin'] = bbox[1]
@@ -162,13 +161,12 @@ def get_clearml_dataset(dataset_name: str, version_name: str, query: str, use_ca
             row['ymax'] = bbox[1] + bbox[3]
             row["width"] = bbox[2]
             row["height"] = bbox[3]
-            row["image_id"] = image_id
+            row["image_name"] = image_name
             row["filepath"] = filepath
-            #df = df.append(row, ignore_index=True)
             anno_list.append(row)
         df = pd.concat([df, pd.DataFrame(anno_list)], ignore_index=True)
     
-    df = df.sort_values(by="image_id", ascending=True)
+    df = df.sort_values(by="image_name", ascending=True)
     df['class'] = 1  # 0: background
     print(f'save frame to {CACHE_FILE}')
     save_frame(df, CACHE_FILE)
@@ -188,7 +186,11 @@ def load_frame(filepath: str) -> DataFrame:
 
 if __name__ == '__main__':
     c = DataConfig()
+    '''
     data_module = DataModule(c)
     data_module.setup()
     for batch in data_module.train_dataloader():
         print(batch)
+    '''
+    df = get_clearml_dataset(c.dataset_name, c.version_name, c.query, False)
+    print(df)

@@ -9,7 +9,7 @@ class DataConfig:
     dataset_name: str = 'modelgun'
     version_name: str = 'Current'
     query: str = 'SM'
-    use_cache: bool = False
+    use_cache: bool = True
     batch_size: int = 2
     train_fraction: float = 0.8
     random_state: int = 36
