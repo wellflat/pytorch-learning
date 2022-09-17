@@ -155,8 +155,8 @@ def get_clearml_dataset(dataset_name: str, version_name: str, query: str, use_ca
         for bbox in bboxes:
             #pt = bbox[0], bbox[1], bbox[0] + bbox[2], bbox[1] + bbox[3]
             row = {}
-            row['xmin'] = bbox[0]
-            row['ymin'] = bbox[1]
+            row['xmin'] = max(bbox[0], 0)
+            row['ymin'] = max(bbox[1], 0)
             row['xmax'] = bbox[0] + bbox[2]
             row['ymax'] = bbox[1] + bbox[3]
             row["width"] = bbox[2]
@@ -194,3 +194,5 @@ if __name__ == '__main__':
     '''
     df = get_clearml_dataset(c.dataset_name, c.version_name, c.query, False)
     print(df)
+    for i, row in df.iterrows():
+        print(row['xmin'], row['ymin'])

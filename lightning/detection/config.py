@@ -4,12 +4,11 @@ from enum import Enum
 @dataclass
 class DataConfig:
     image_dir: str = '../../data/car/training_images'
-    #xml_dir: str = '../../data/oxford/annotations/xmls'
     train_filepath: str = '../../data/car/train_solution_bounding_boxes.csv'
     dataset_name: str = 'modelgun'
     version_name: str = 'Current'
     query: str = 'SM'
-    use_cache: bool = True
+    use_cache: bool = False
     batch_size: int = 2
     train_fraction: float = 0.8
     random_state: int = 36

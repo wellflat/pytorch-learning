@@ -20,6 +20,7 @@ def parse_args():
     parser.add_argument('--epoch', default=100, type=int, help='epochs')
     parser.add_argument('--gpu', action='store_true', default=False, help='use gpu')
     parser.add_argument('--offline', action='store_true', default=False, help='offline mode')
+    parser.add_argument('--cache', action='store_true', default=False, help='use dataset cache')
     return parser.parse_args()
 
 
@@ -66,7 +67,7 @@ if __name__ == '__main__':
     print(args)
     if not args.offline:
         task = setup_clearml()
-    data_config = DataConfig(batch_size=args.batch_size)
+    data_config = DataConfig(batch_size=args.batch_size, use_cache=args.cache)
     train_config = ModelConfig(base_lr=args.lr)
     data_module = DataModule(data_config)
     model = Detector(train_config)
