@@ -186,13 +186,9 @@ def load_frame(filepath: str) -> DataFrame:
 
 if __name__ == '__main__':
     c = DataConfig()
-    '''
+    
     data_module = DataModule(c)
-    data_module.setup()
+    data_module.setup(stage='fit')
     for batch in data_module.train_dataloader():
         print(batch)
-    '''
-    df = get_clearml_dataset(c.dataset_name, c.version_name, c.query, False)
-    print(df)
-    for i, row in df.iterrows():
-        print(row['xmin'], row['ymin'])
+    
