@@ -17,9 +17,10 @@ class DataConfig:
 
 @dataclass
 class ModelConfig:
-    arch: str = 'mobilenetv3' #'resnet50' 
+    arch: str = 'mobilenetv3' # 'resnet50'
+    optimizer: str = 'radam' # 'sgd'
     num_classes: int = 2
-    base_lr: int = 1e-4  ## AdamW: 1e-4, SGD: 1e-2
+    base_lr: int = 1e-4  ## RAdam,AdamW: 1e-4, SGD: 1e-2
     step_size: int = 25  ## for StepLR
     gamma: float = 0.1
     conf_threshold: float = 0.2

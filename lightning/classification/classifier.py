@@ -8,7 +8,7 @@ import pytorch_lightning as pl
 from torchvision import models
 import torchmetrics
 from config import ModelConfig
-from resnet import MNISTResNet
+#from resnet import MNISTResNet
 from debug_image import display_image
 
 

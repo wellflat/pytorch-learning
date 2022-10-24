@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from typing import List
+from typing import Dict, List
 import argparse
 import pytorch_lightning as pl
-from pytorch_lightning.callbacks import Callback, DeviceStatsMonitor, LearningRateMonitor, ModelCheckpoint, EarlyStopping
+from pytorch_lightning.callbacks import Callback, DeviceStatsMonitor, EarlyStopping, LearningRateMonitor, ModelCheckpoint, RichProgressBar
 from pytorch_lightning.loggers import TensorBoardLogger
 from dataset import DataModule
 from classifier import Classifier
@@ -23,10 +23,10 @@ def parse_args():
     return parser.parse_args()
 
 
-def setup_clearml() -> Task:
+def setup_clearml(project_name: str, task_name: str, labels: Dict[str, int]=None) -> Task:
     task = Task.init(
-        project_name='Test',
-        task_name='Cat or Dog classification',
+        project_name=project_name,
+        task_name=task_name,
         task_type=TaskTypes.training,
         tags=None,
         reuse_last_task_id=True,
@@ -37,15 +37,17 @@ def setup_clearml() -> Task:
         auto_resource_monitoring=True,
         auto_connect_streams=True,
     )
-    task.connect_label_enumeration({'cat': 0, 'dog': 1})
+    if labels is not None:
+        task.connect_label_enumeration(labels)
     return task
 
 
-def get_trainer_callbacks() -> List[Callback]:
+def get_trainer_callbacks(task_name: str) -> List[Callback]:
+    model_filename = task_name + ':{epoch:02d}-{Accuracy:.3f}'
     trainer_callbacks = [
         ModelCheckpoint(
             dirpath='./checkpoints',
-            filename='model:{epoch:02d}-{Accuracy:.3f}',
+            filename=model_filename,
             monitor='Accuracy',
             mode='max',
             save_top_k=1
@@ -56,16 +58,27 @@ def get_trainer_callbacks() -> List[Callback]:
             patience=10
         ),
         LearningRateMonitor('epoch'),
-        DeviceStatsMonitor()
+        DeviceStatsMonitor(),
+        RichProgressBar(refresh_rate=1)
     ]
     return trainer_callbacks
+
+
+def get_nowstr() -> str:
+    import datetime
+    delta = datetime.timedelta(hours=9)
+    JST = datetime.timezone(delta, 'JST')
+    now = datetime.datetime.now(JST)
+    return f'{now:%m%d%H%M}'
 
 
 if __name__ == '__main__':
     args = parse_args()
     print(args)
+    task_name = f'classification-{get_nowstr()}'
     if not args.offline:
-        task = setup_clearml()
+        task = setup_clearml('Test', task_name)
+
     data_config = DataConfig(batch_size=args.batch_size)
     data_module = DataModule(data_config)
     model_config = ModelConfig(base_lr=args.lr)

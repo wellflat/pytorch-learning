@@ -1,0 +1,9 @@
+__pycache__/
+checkpoints/
+data/
+tb_logs/
+cifar10_dataset.py
+lenet.py
+mnist_dataset.py
+resnet.py
+sample_data.py
