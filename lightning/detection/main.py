@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from typing import List
+from typing import List, Optional
 import argparse
 import pytorch_lightning as pl
 from pytorch_lightning.callbacks import Callback, DeviceStatsMonitor, LearningRateMonitor, ModelCheckpoint, EarlyStopping, RichProgressBar
@@ -62,6 +62,7 @@ def get_trainer_callbacks() -> List[Callback]:
     ]
     return trainer_callbacks
 
+
 if __name__ == '__main__':
     args = parse_args()
     print(args)
@@ -84,6 +85,15 @@ if __name__ == '__main__':
         precision=16 if args.gpu else 32,
         amp_backend='native'
     )
+    # using LR Finder
+    use_lr_finder = True
+    if use_lr_finder:
+        print('find Learning Rate')
+        lr_finder = trainer.tuner.lr_find(model=model, datamodule=data_module, min_lr=1e-7, max_lr=1e-2)
+        suggested_lr = lr_finder.suggestion(skip_begin=10)
+        print(f'suggested lr: {suggested_lr}')
+        train_config.base_lr = suggested_lr
+    
     model_path = 'checkpoints/detector.ckpt'
     if args.train:
         trainer.fit(model, data_module)
